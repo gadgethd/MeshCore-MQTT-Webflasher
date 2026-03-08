@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MeshCore MQTT Web Flasher</title>
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="topbar__brand">
+          <p class="eyebrow">UKMesh Utility</p>
+          <h1>MeshCore MQTT Web Flasher</h1>
+          <p class="topbar__summary">
+            Flash MQTT-ready MeshCore firmware, apply WiFi and broker settings over serial,
+            and verify the device status without leaving the page.
+          </p>
+        </div>
+        <div class="topbar__meta">
+          <div class="meta-pill">
+            <span class="meta-pill__label">Target</span>
+            <span class="meta-pill__value">flasher.ukmesh.com</span>
+          </div>
+          <div class="meta-pill">
+            <span class="meta-pill__label">Firmware</span>
+            <span class="meta-pill__value" id="firmware-version">v1.14.0</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="notice-bar" aria-label="Alpha warning">
+        <div class="notice-bar__badge">Alpha</div>
+        <div class="notice-bar__content">
+          <strong>This flasher is still in alpha.</strong>
+          <span>
+            Use it at your own risk. No liability is accepted for failed flashes,
+            misconfiguration, damaged hardware, or bricked devices.
+          </span>
+        </div>
+      </section>
+
+      <main class="workspace">
+        <section class="workflow">
+          <div class="workflow__content">
+            <section class="panel panel--wide step-panel" id="choose-board">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Step 1</p>
+                  <h2>Choose Board</h2>
+                </div>
+                <span class="panel__status panel__status--ready">Ready</span>
+              </div>
+              <div class="board-grid">
+                <label class="field field--span-2">
+                  <span class="field__label">Supported board</span>
+                  <select id="board-select">
+                    <option>Heltec v3 Repeater</option>
+                    <option>Heltec v4 Repeater</option>
+                    <option>LilyGo T3S3 SX1262</option>
+                    <option>T-Beam SX1262</option>
+                    <option>RAK 3112</option>
+                    <option>Xiao S3 WIO</option>
+                  </select>
+                </label>
+                <div class="info-card">
+                  <span class="info-card__label">Firmware family</span>
+                  <strong>meshcore-mqtt</strong>
+                </div>
+                <div class="info-card">
+                  <span class="info-card__label">Latest build</span>
+                  <strong id="build-label">v1.14.0</strong>
+                </div>
+                <div class="info-card">
+                  <span class="info-card__label">Flash package</span>
+                  <strong id="flash-package">full + update</strong>
+                </div>
+                <div class="info-card">
+                  <span class="info-card__label">Hardware check</span>
+                  <strong>Heltec v3 verified</strong>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel panel--wide step-panel" id="flash-firmware">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Step 2</p>
+                  <h2>Flash Firmware</h2>
+                </div>
+                <span class="panel__status panel__status--idle" id="flash-state">Idle</span>
+              </div>
+              <div class="action-row">
+                <button class="button button--primary" id="flash-button">Flash Full Firmware</button>
+                <button class="button button--secondary" id="update-button">Flash Update Only</button>
+                <button class="button button--ghost" id="manifest-button">View Manifest</button>
+              </div>
+              <div class="progress-block">
+                <div class="progress-block__track">
+                  <div class="progress-block__bar" id="flash-progress-bar"></div>
+                </div>
+                <div class="progress-block__meta">
+                  <span id="flash-progress-text">Waiting to start</span>
+                  <span id="flash-progress-percent">0%</span>
+                </div>
+              </div>
+              <div class="note-list">
+                <p>Use the full image for first installs. Use the update image when the board already has the correct partition layout.</p>
+                <p>The browser handles USB flashing locally. Firmware binaries are served from this host only.</p>
+              </div>
+            </section>
+
+            <section class="panel panel--wide step-panel" id="settings">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Step 3</p>
+                  <h2>Enter WiFi and MQTT Settings</h2>
+                </div>
+                <span class="panel__status panel__status--idle" id="settings-state">Pending</span>
+              </div>
+              <form class="settings-grid" id="settings-form">
+                <label class="field">
+                  <span class="field__label">WiFi SSID</span>
+                  <input type="text" name="wifiSsid" value="UKMesh-Radio">
+                </label>
+                <label class="field">
+                  <span class="field__label">WiFi Password</span>
+                  <input type="password" name="wifiPassword" value="password123">
+                </label>
+                <label class="field field--span-2">
+                  <span class="field__label">MQTT URI</span>
+                  <input type="text" name="mqttUri" value="wss://mqtt.ukmesh.com:443/">
+                </label>
+                <label class="field">
+                  <span class="field__label">MQTT Username</span>
+                  <input type="text" name="mqttUsername" value="observer">
+                </label>
+                <label class="field">
+                  <span class="field__label">MQTT Password</span>
+                  <input type="password" name="mqttPassword" value="observer-password">
+                </label>
+                <label class="field">
+                  <span class="field__label">Topic Root</span>
+                  <input type="text" name="topicRoot" value="meshcore">
+                </label>
+                <label class="field">
+                  <span class="field__label">IATA</span>
+                  <input type="text" name="iata" value="LHR">
+                </label>
+                <label class="field">
+                  <span class="field__label">Model Label</span>
+                  <input type="text" name="model" value="Heltec V3">
+                </label>
+                <label class="field">
+                  <span class="field__label">Client Version</span>
+                  <input type="text" name="clientVersion" value="custom-mqtt-observer/1.0.0">
+                </label>
+              </form>
+            </section>
+
+            <section class="panel panel--wide step-panel" id="configure-device">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Step 4</p>
+                  <h2>Configure Device</h2>
+                </div>
+                <span class="panel__status panel__status--idle" id="serial-state">Serial disconnected</span>
+              </div>
+              <div class="action-row">
+                <button class="button button--primary" id="serial-button">Connect Serial</button>
+                <button class="button button--secondary" id="configure-button">Apply Settings</button>
+                <button class="button button--ghost" id="reconnect-button">Run MQTT Reconnect</button>
+              </div>
+              <ol class="command-list" id="command-list">
+                <li class="command-list__item is-pending"><span>Connect USB serial</span><strong>Pending</strong></li>
+                <li class="command-list__item is-pending"><span>Write WiFi settings</span><strong>Pending</strong></li>
+                <li class="command-list__item is-pending"><span>Write MQTT settings</span><strong>Pending</strong></li>
+                <li class="command-list__item is-pending"><span>Trigger reconnect</span><strong>Pending</strong></li>
+              </ol>
+            </section>
+          </div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="panel panel--compact">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Connection</p>
+                <h2>Current State</h2>
+              </div>
+            </div>
+            <div class="state-grid">
+              <div class="state-chip">
+                <span class="state-chip__label">Board</span>
+                <strong id="state-board">Heltec v3 Repeater</strong>
+              </div>
+              <div class="state-chip">
+                <span class="state-chip__label">Flash</span>
+                <strong id="state-flash">Not started</strong>
+              </div>
+              <div class="state-chip">
+                <span class="state-chip__label">Serial</span>
+                <strong id="state-serial">Disconnected</strong>
+              </div>
+              <div class="state-chip">
+                <span class="state-chip__label">MQTT</span>
+                <strong id="state-mqtt">Awaiting verify</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel panel--compact">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Live Output</p>
+                <h2>Serial Log</h2>
+              </div>
+              <button class="button button--ghost button--small" id="clear-log-button">Clear</button>
+            </div>
+            <div class="log-pane" id="log-pane" aria-live="polite">
+              <p><span>13:20:40</span> Ready. Select a board and start flashing.</p>
+            </div>
+          </section>
+
+          <section class="panel panel--compact" id="verify">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Step 5</p>
+                <h2>Verification Summary</h2>
+              </div>
+              <span class="panel__status panel__status--idle" id="verify-state">Waiting</span>
+            </div>
+            <ul class="summary-list">
+              <li><span>Firmware image</span><strong id="summary-firmware">Not flashed</strong></li>
+              <li><span>Serial session</span><strong id="summary-serial">Disconnected</strong></li>
+              <li><span>Config commands</span><strong id="summary-config">Not sent</strong></li>
+              <li><span>MQTT connection</span><strong id="summary-mqtt">Unknown</strong></li>
+            </ul>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <script src="assets/app.js"></script>
+  </body>
+</html>
