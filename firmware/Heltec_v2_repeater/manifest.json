@@ -1,0 +1,15 @@
+{
+  "base_env": "Heltec_v2_repeater",
+  "build_env": "Heltec_v2_repeater_mqtt_dynamic",
+  "firmware_name": "meshcore-mqtt",
+  "firmware_version": "v1.14.0",
+  "built_at_utc": "2026-03-08T14:38:19Z",
+  "artifacts": {
+    "update": "meshcore-mqtt-v1.14.0-Heltec_v2_repeater-update.bin",
+    "full": "meshcore-mqtt-v1.14.0-Heltec_v2_repeater-full.bin"
+  },
+  "flash_offsets": {
+    "update": "0x10000",
+    "full": "0x00000"
+  }
+}

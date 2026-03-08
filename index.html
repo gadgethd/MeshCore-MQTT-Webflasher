@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MeshCore MQTT Web Flasher</title>
-    <link rel="stylesheet" href="assets/styles.css">
+    <link rel="stylesheet" href="assets/styles.css?v=20260308-2134">
   </head>
   <body>
     <div class="app-shell">
@@ -55,8 +55,28 @@
                 <div class="field field--span-2">
                   <span class="field__label">Supported board</span>
                   <div class="board-picker">
-                    <select id="board-select"></select>
-                    <button class="button button--primary board-picker__action" id="serial-button">Connect Serial</button>
+                    <div class="board-combobox" id="board-combobox">
+                      <button
+                        class="board-combobox__trigger"
+                        id="board-trigger"
+                        type="button"
+                        aria-haspopup="listbox"
+                        aria-expanded="false"
+                      >
+                        <span id="board-trigger-label">Loading</span>
+                      </button>
+                      <div class="board-combobox__menu" id="board-menu" hidden>
+                        <input
+                          class="board-combobox__search"
+                          id="board-search"
+                          type="text"
+                          placeholder="Filter boards"
+                          autocomplete="off"
+                        >
+                        <div class="board-combobox__options" id="board-options" role="listbox"></div>
+                      </div>
+                      <select id="board-select" class="board-combobox__native" aria-hidden="true" tabindex="-1"></select>
+                    </div>
                   </div>
                 </div>
                 <div class="info-card">
@@ -82,14 +102,53 @@
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Step 2</p>
-                  <h2>Flash Firmware</h2>
+                  <h2>Choose Radio Settings and Flash Firmware</h2>
                 </div>
                 <span class="panel__status panel__status--idle" id="flash-state">Idle</span>
               </div>
+              <div class="radio-config">
+                <div class="panel__header panel__header--compact">
+                  <div>
+                    <p class="panel__eyebrow">Radio</p>
+                    <h3>LoRa Profile</h3>
+                  </div>
+                </div>
+                <div class="settings-grid settings-grid--radio" id="radio-settings">
+                  <label class="field field--span-2">
+                    <span class="field__label">Preset</span>
+                    <select id="radio-preset" name="radioPreset">
+                      <option value="EU_NARROW" selected>Europe (Narrow)</option>
+                      <option value="US_NARROW">USA/Canada (Narrow)</option>
+                      <option value="AU_NZ">Australia/NZ</option>
+                      <option value="CUSTOM">Custom</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Frequency (MHz)</span>
+                    <input type="text" id="radio-frequency" name="radioFrequency" value="869.525">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Bandwidth (kHz)</span>
+                    <input type="text" id="radio-bandwidth" name="radioBandwidth" value="62.5">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Spreading Factor</span>
+                    <input type="text" id="radio-sf" name="radioSf" value="8">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Coding Rate</span>
+                    <input type="text" id="radio-cr" name="radioCr" value="5">
+                  </label>
+                </div>
+                <div class="radio-config__command">
+                  <span class="field__label">MeshCore CLI Command</span>
+                  <strong id="radio-command">set radio 869.525,62.5,8,5</strong>
+                </div>
+              </div>
               <div class="action-row">
-                <button class="button button--primary" id="flash-button">Flash Full Firmware</button>
-                <button class="button button--secondary" id="update-button">Flash Update Only</button>
-                <button class="button button--ghost" id="manifest-button">View Manifest</button>
+                    <button class="button button--primary" id="flash-button" type="button">Flash Full Firmware</button>
+                    <button class="button button--secondary" id="update-button" type="button">Flash Update Only</button>
+                    <button class="button button--ghost" id="manifest-button" type="button">View Manifest</button>
               </div>
               <div class="artifact-strip">
                 <div class="artifact-strip__item">
@@ -111,7 +170,9 @@
                 </div>
               </div>
               <div class="note-list">
+                <p>Choose the radio profile first, then flash the firmware. The selected radio command is applied afterward in the Configure Device step, followed by a reboot so the radio changes take effect.</p>
                 <p>Use the full image for first installs. Use the update image when the board already has the correct partition layout.</p>
+                <p>The preset populates the MeshCore CLI command, but you can edit frequency, bandwidth, SF, and CR manually.</p>
                 <p>The browser handles flashing over Web Serial locally. Firmware binaries are served from this host only.</p>
               </div>
             </section>
@@ -120,11 +181,34 @@
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Step 3</p>
-                  <h2>Enter WiFi and MQTT Settings</h2>
+                  <h2>Enter Device, WiFi, and MQTT Settings</h2>
                 </div>
                 <span class="panel__status panel__status--idle" id="settings-state">Pending</span>
               </div>
               <form class="settings-grid" id="settings-form">
+                <label class="field field--span-2">
+                  <span class="field__label">Repeater Name</span>
+                  <input
+                    id="repeater-name"
+                    type="text"
+                    name="repeaterName"
+                    maxlength="31"
+                    placeholder="Leave blank to keep the current node name"
+                  >
+                  <span class="field__hint">Optional. MeshCore allows up to 31 characters and rejects `[ ] \ : , ? *`.</span>
+                </label>
+                <label class="field field--span-2">
+                  <span class="field__label">Private Key</span>
+                  <input
+                    id="private-key"
+                    type="password"
+                    name="privateKey"
+                    placeholder="128 hex characters, leave blank to keep the current key"
+                    autocomplete="off"
+                    spellcheck="false"
+                  >
+                  <span class="field__hint">Optional. MeshCore expects a 128-character hex private key and applies it after reboot.</span>
+                </label>
                 <label class="field">
                   <span class="field__label">WiFi SSID</span>
                   <input type="text" name="wifiSsid" value="UKMesh-Radio">
@@ -162,26 +246,32 @@
                   <input type="text" name="clientVersion" value="custom-mqtt-observer/1.0.0">
                 </label>
               </form>
+              <div class="settings-actions">
+                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the repeater name, optional private key, WiFi, and MQTT settings without leaving Step 3.</p>
+                <div class="action-row settings-actions__row">
+                  <button class="button button--primary settings-actions__serial" id="serial-button" type="button">Connect Serial</button>
+                  <button class="button button--secondary settings-actions__apply" id="settings-apply-button" type="button">Apply Settings</button>
+                  <button class="button button--ghost" id="reconnect-button" type="button">Reconnect MQTT</button>
+                  <button class="button button--ghost" id="verify-button" type="button">Run Verification</button>
+                </div>
+              </div>
             </section>
 
             <section class="panel panel--wide step-panel" id="configure-device">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Step 4</p>
-                  <h2>Configure Device</h2>
+                  <h2>Configuration Progress</h2>
                 </div>
                 <span class="panel__status panel__status--idle" id="serial-state">Serial disconnected</span>
               </div>
-              <div class="action-row">
-                <button class="button button--secondary" id="configure-button">Apply Settings</button>
-                <button class="button button--ghost" id="reconnect-button">Reconnect MQTT</button>
-                <button class="button button--ghost" id="verify-button">Run Verification</button>
-              </div>
               <ol class="command-list" id="command-list">
                 <li class="command-list__item is-pending"><span>Connect USB serial</span><strong>Pending</strong></li>
+                <li class="command-list__item is-pending"><span>Write radio settings</span><strong>Pending</strong></li>
+                <li class="command-list__item is-pending"><span>Write repeater identity</span><strong>Pending</strong></li>
                 <li class="command-list__item is-pending"><span>Write WiFi settings</span><strong>Pending</strong></li>
                 <li class="command-list__item is-pending"><span>Write MQTT settings</span><strong>Pending</strong></li>
-                <li class="command-list__item is-pending"><span>Trigger reconnect</span><strong>Pending</strong></li>
+                <li class="command-list__item is-pending"><span>Reboot device</span><strong>Pending</strong></li>
               </ol>
               <div class="command-preview">
                 <div class="panel__header panel__header--compact">
@@ -252,26 +342,11 @@
             </div>
           </section>
 
-          <section class="panel panel--compact" id="verify">
-            <div class="panel__header">
-              <div>
-                <p class="panel__eyebrow">Step 5</p>
-                <h2>Verification Summary</h2>
-              </div>
-              <span class="panel__status panel__status--idle" id="verify-state">Waiting</span>
-            </div>
-            <ul class="summary-list">
-              <li><span>Firmware image</span><strong id="summary-firmware">Not flashed</strong></li>
-              <li><span>Serial session</span><strong id="summary-serial">Disconnected</strong></li>
-              <li><span>Config commands</span><strong id="summary-config">Not sent</strong></li>
-              <li><span>MQTT connection</span><strong id="summary-mqtt">Unknown</strong></li>
-            </ul>
-          </section>
         </aside>
       </main>
     </div>
 
-    <script src="assets/firmware-data.js"></script>
-    <script src="assets/app.js"></script>
+    <script src="assets/firmware-data.js?v=20260308-2141"></script>
+    <script src="assets/app.js?v=20260308-2141"></script>
   </body>
 </html>

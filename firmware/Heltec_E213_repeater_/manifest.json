@@ -1,0 +1,15 @@
+{
+  "base_env": "Heltec_E213_repeater_",
+  "build_env": "Heltec_E213_repeater__mqtt_dynamic",
+  "firmware_name": "meshcore-mqtt",
+  "firmware_version": "v1.14.0",
+  "built_at_utc": "2026-03-08T14:33:26Z",
+  "artifacts": {
+    "update": "meshcore-mqtt-v1.14.0-Heltec_E213_repeater_-update.bin",
+    "full": "meshcore-mqtt-v1.14.0-Heltec_E213_repeater_-full.bin"
+  },
+  "flash_offsets": {
+    "update": "0x10000",
+    "full": "0x00000"
+  }
+}

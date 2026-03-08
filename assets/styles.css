@@ -276,19 +276,120 @@ select {
 
 .board-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 
 .board-picker__action {
   min-width: 150px;
 }
 
+.board-combobox {
+  position: relative;
+}
+
+.board-combobox__trigger,
+.board-combobox__search {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(5, 12, 20, 0.84);
+  color: var(--text);
+}
+
+.board-combobox__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.board-combobox__trigger::after {
+  content: "▾";
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.board-combobox__trigger[aria-expanded="true"] {
+  border-color: var(--line-strong);
+}
+
+.board-combobox__menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  padding: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  background: rgba(7, 17, 29, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.board-combobox__search {
+  margin-bottom: 10px;
+}
+
+.board-combobox__options {
+  max-height: 320px;
+  overflow-y: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.board-combobox__option {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(10, 21, 35, 0.92);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.board-combobox__option:hover,
+.board-combobox__option:focus {
+  border-color: var(--line-strong);
+  background: rgba(16, 32, 50, 0.96);
+}
+
+.board-combobox__option.is-selected {
+  border-color: rgba(97, 197, 231, 0.34);
+  background: rgba(20, 53, 78, 0.68);
+}
+
+.board-combobox__empty {
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(10, 21, 35, 0.92);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.board-combobox__native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .field__label {
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 600;
+}
+
+.field__hint {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
 }
 
 input,
@@ -303,7 +404,8 @@ select {
 
 input:focus,
 select:focus,
-button:focus {
+button:focus,
+.board-combobox__trigger:focus {
   outline: 2px solid rgba(97, 197, 231, 0.26);
   outline-offset: 2px;
 }
@@ -313,6 +415,32 @@ button:focus {
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.settings-actions {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-actions__row {
+  margin-bottom: 0;
+}
+
+.settings-actions__serial {
+  min-width: 170px;
+}
+
+.settings-actions__apply {
+  min-width: 170px;
+}
+
+.settings-actions__note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .artifact-strip {
@@ -396,6 +524,32 @@ button:focus {
   font-size: 0.85rem;
 }
 
+.radio-config {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(7, 17, 29, 0.54);
+}
+
+.settings-grid--radio {
+  margin-bottom: 14px;
+}
+
+.radio-config__command {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(5, 12, 20, 0.84);
+}
+
+.radio-config__command strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.92rem;
+  word-break: break-word;
+}
+
 .note-list {
   display: grid;
   gap: 8px;
@@ -474,7 +628,13 @@ button:focus {
 
 .log-pane {
   height: 340px;
-  overflow: auto;
+  min-height: 340px;
+  max-height: 340px;
+  block-size: 340px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  overflow-anchor: none;
   padding: 14px;
   border-radius: 14px;
   border: 1px solid rgba(94, 132, 171, 0.24);
@@ -488,6 +648,8 @@ button:focus {
 .log-pane p {
   margin: 0 0 8px;
   color: #c4d5e7;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .log-pane span {
@@ -542,7 +704,7 @@ button:focus {
     grid-template-columns: 1fr;
   }
 
-  .board-picker {
+  .settings-actions {
     grid-template-columns: 1fr;
   }
 

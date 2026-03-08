@@ -1,4 +1,9 @@
 const boardSelect = document.getElementById("board-select");
+const boardTrigger = document.getElementById("board-trigger");
+const boardTriggerLabel = document.getElementById("board-trigger-label");
+const boardMenu = document.getElementById("board-menu");
+const boardOptions = document.getElementById("board-options");
+const boardSearch = document.getElementById("board-search");
 const firmwareVersion = document.getElementById("firmware-version");
 const firmwareFamily = document.getElementById("firmware-family");
 const buildLabel = document.getElementById("build-label");
@@ -10,6 +15,12 @@ const flashProgressText = document.getElementById("flash-progress-text");
 const flashProgressPercent = document.getElementById("flash-progress-percent");
 const artifactFullName = document.getElementById("artifact-full-name");
 const artifactUpdateName = document.getElementById("artifact-update-name");
+const radioPreset = document.getElementById("radio-preset");
+const radioFrequency = document.getElementById("radio-frequency");
+const radioBandwidth = document.getElementById("radio-bandwidth");
+const radioSf = document.getElementById("radio-sf");
+const radioCr = document.getElementById("radio-cr");
+const radioCommand = document.getElementById("radio-command");
 const serialState = document.getElementById("serial-state");
 const settingsState = document.getElementById("settings-state");
 const verifyState = document.getElementById("verify-state");
@@ -29,12 +40,15 @@ const flashButton = document.getElementById("flash-button");
 const updateButton = document.getElementById("update-button");
 const manifestButton = document.getElementById("manifest-button");
 const serialButton = document.getElementById("serial-button");
+const settingsApplyButton = document.getElementById("settings-apply-button");
 const configureButton = document.getElementById("configure-button");
 const reconnectButton = document.getElementById("reconnect-button");
 const verifyButton = document.getElementById("verify-button");
 const clearLogButton = document.getElementById("clear-log-button");
 const settingsForm = document.getElementById("settings-form");
 const commandPreviewPane = document.getElementById("command-preview-pane");
+const repeaterNameInput = document.getElementById("repeater-name");
+const privateKeyInput = document.getElementById("private-key");
 const capSecure = document.getElementById("cap-secure");
 const capSerial = document.getElementById("cap-serial");
 const capUsb = document.getElementById("cap-usb");
@@ -54,6 +68,41 @@ let lineListeners = [];
 let serialLoopRunning = false;
 let flashingNow = false;
 let esptoolModulePromise = null;
+let filteredBoards = [];
+let serialConnectedAt = 0;
+let serialCliReady = false;
+let preferredSerialPortInfo = null;
+let scheduledSerialDisconnect = null;
+
+const RADIO_PRESETS = {
+  US_NARROW: {
+    label: "USA/Canada (Narrow)",
+    frequency: "910.525",
+    bandwidth: "62.5",
+    sf: "7",
+    cr: "5"
+  },
+  EU_NARROW: {
+    label: "Europe (Narrow)",
+    frequency: "869.525",
+    bandwidth: "62.5",
+    sf: "8",
+    cr: "5"
+  },
+  AU_NZ: {
+    label: "Australia/NZ",
+    frequency: "916.8",
+    bandwidth: "125",
+    sf: "9",
+    cr: "5"
+  }
+};
+
+const SENSITIVE_COMMAND_PREFIXES = [
+  "set mqtt.wifi.pass ",
+  "set mqtt.password ",
+  "set prv.key "
+];
 
 function humanFlashPackage(board) {
   if (!board) return "Unavailable";
@@ -71,6 +120,7 @@ function setBoardDetails(board) {
   currentBoard = board;
   if (!board) return;
 
+  boardTriggerLabel.textContent = board.label;
   stateBoard.textContent = board.label;
   firmwareVersion.textContent = board.firmwareVersion;
   firmwareFamily.textContent = board.firmwareName;
@@ -82,12 +132,14 @@ function setBoardDetails(board) {
   capManifest.textContent = board.manifestPath ? "Board manifest" : "Catalog fallback";
 
   const flashReady = Boolean(board.artifactBase && board.chipFamily);
-  flashButton.disabled = !flashReady;
-  updateButton.disabled = !flashReady;
+  flashButton.disabled = !flashReady || flashingNow;
+  updateButton.disabled = !flashReady || flashingNow;
+  renderBoardOptions();
 }
 
 function populateBoards() {
   boardSelect.innerHTML = "";
+  filteredBoards = [...firmwareData.boards];
 
   firmwareData.boards.forEach((board, index) => {
     const option = document.createElement("option");
@@ -98,6 +150,57 @@ function populateBoards() {
   });
 
   setBoardDetails(firmwareData.boards[0]);
+}
+
+function closeBoardMenu() {
+  boardMenu.hidden = true;
+  boardTrigger.setAttribute("aria-expanded", "false");
+}
+
+function openBoardMenu() {
+  boardMenu.hidden = false;
+  boardTrigger.setAttribute("aria-expanded", "true");
+  boardSearch.focus();
+  boardSearch.select();
+}
+
+function filterBoards(term) {
+  const query = term.trim().toLowerCase();
+  filteredBoards = firmwareData.boards.filter((board) =>
+    board.label.toLowerCase().includes(query) || board.id.toLowerCase().includes(query)
+  );
+  renderBoardOptions();
+}
+
+function renderBoardOptions() {
+  boardOptions.innerHTML = "";
+
+  if (filteredBoards.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "board-combobox__empty";
+    empty.textContent = "No boards match that filter.";
+    boardOptions.appendChild(empty);
+    return;
+  }
+
+  filteredBoards.forEach((board) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "board-combobox__option";
+    if (currentBoard && currentBoard.id === board.id) {
+      option.classList.add("is-selected");
+    }
+    option.textContent = board.label;
+    option.setAttribute("role", "option");
+    option.setAttribute("aria-selected", currentBoard && currentBoard.id === board.id ? "true" : "false");
+    option.addEventListener("click", () => {
+      boardSelect.value = board.id;
+      setBoardDetails(board);
+      appendLog(`Board selected: ${board.label}`);
+      closeBoardMenu();
+    });
+    boardOptions.appendChild(option);
+  });
 }
 
 function capabilityLabel(supported) {
@@ -121,7 +224,11 @@ function evaluateCapabilities() {
 }
 
 function updateSerialButton() {
-  serialButton.textContent = serialConnected ? "Disconnect Serial" : "Connect Serial";
+  if (serialConnected) {
+    serialButton.textContent = "Disconnect Serial";
+    return;
+  }
+  serialButton.textContent = flashComplete ? "Connect Serial" : "Connect Serial (After Flash)";
 }
 
 function notifyLineListeners(line) {
@@ -144,9 +251,32 @@ function clearLineListeners(errorMessage) {
   remaining.forEach((listener) => listener.reject(new Error(errorMessage)));
 }
 
+function samePortInfo(left, right) {
+  if (!left || !right) return false;
+  return left.usbVendorId === right.usbVendorId && left.usbProductId === right.usbProductId;
+}
+
+async function requestPreferredPort() {
+  if (!("serial" in navigator)) {
+    throw new Error("Web Serial API is not available in this browser");
+  }
+
+  if (preferredSerialPortInfo) {
+    const knownPorts = await navigator.serial.getPorts();
+    const matchingPort = knownPorts.find((port) => samePortInfo(port.getInfo(), preferredSerialPortInfo));
+    if (matchingPort) {
+      appendLog("Reusing the previously flashed serial port.");
+      return matchingPort;
+    }
+  }
+
+  const filters = preferredSerialPortInfo ? [preferredSerialPortInfo] : undefined;
+  return navigator.serial.requestPort(filters ? { filters } : undefined);
+}
+
 function pushSerialLine(line) {
   if (!line.trim()) return;
-  appendLog(line);
+  appendLog(`[rx] ${line}`);
   notifyLineListeners(line);
 }
 
@@ -208,19 +338,154 @@ function waitForLine(predicate, timeoutMs = 6000) {
   });
 }
 
-function buildCommandList() {
+function getRadioValues() {
+  return {
+    frequency: radioFrequency.value.trim(),
+    bandwidth: radioBandwidth.value.trim(),
+    sf: radioSf.value.trim(),
+    cr: radioCr.value.trim()
+  };
+}
+
+function buildRadioCommand() {
+  const { frequency, bandwidth, sf, cr } = getRadioValues();
+  return `set radio ${frequency},${bandwidth},${sf},${cr}`;
+}
+
+function syncRadioCommand() {
+  radioCommand.textContent = buildRadioCommand();
+}
+
+function applyRadioPreset(presetKey) {
+  const preset = RADIO_PRESETS[presetKey];
+  if (!preset) return;
+  radioFrequency.value = preset.frequency;
+  radioBandwidth.value = preset.bandwidth;
+  radioSf.value = preset.sf;
+  radioCr.value = preset.cr;
+  syncRadioCommand();
+}
+
+function updateRadioPresetFromInputs() {
+  const { frequency, bandwidth, sf, cr } = getRadioValues();
+  const matched = Object.entries(RADIO_PRESETS).find(([, preset]) =>
+    preset.frequency === frequency &&
+    preset.bandwidth === bandwidth &&
+    preset.sf === sf &&
+    preset.cr === cr
+  );
+  radioPreset.value = matched ? matched[0] : "CUSTOM";
+  syncRadioCommand();
+}
+
+function buildConfigurationPlan({ validatePrivateKey = true } = {}) {
   const formData = new FormData(settingsForm);
-  return [
-    `set mqtt.wifi.ssid ${formData.get("wifiSsid") || ""}`,
-    `set mqtt.wifi.pass ${formData.get("wifiPassword") || ""}`,
-    `set mqtt.uri ${formData.get("mqttUri") || ""}`,
-    `set mqtt.username ${formData.get("mqttUsername") || ""}`,
-    `set mqtt.password ${formData.get("mqttPassword") || ""}`,
-    `set mqtt.topic.root ${formData.get("topicRoot") || ""}`,
-    `set mqtt.iata ${formData.get("iata") || ""}`,
-    `set mqtt.model ${formData.get("model") || ""}`,
-    `set mqtt.client.version ${formData.get("clientVersion") || ""}`
-  ];
+  const repeaterName = String(repeaterNameInput?.value || "").trim();
+  const privateKey = String(privateKeyInput?.value || "").trim();
+  const invalidNameChars = repeaterName.match(/[[\]\\:,?*]/g);
+
+  if (repeaterName.length > 31) {
+    throw new Error("Repeater name must be 31 characters or fewer");
+  }
+  if (invalidNameChars) {
+    const uniqueChars = [...new Set(invalidNameChars)].join(" ");
+    throw new Error(`Repeater name contains unsupported characters: ${uniqueChars}`);
+  }
+
+  if (validatePrivateKey && privateKey && !/^[0-9a-fA-F]{128}$/.test(privateKey)) {
+    throw new Error("Private key must be exactly 128 hex characters");
+  }
+
+  const identityCommands = [];
+  if (repeaterName) {
+    identityCommands.push(`set name ${repeaterName}`);
+  }
+  if (privateKey) {
+    identityCommands.push(`set prv.key ${privateKey}`);
+  }
+
+  return {
+    radio: [buildRadioCommand()],
+    identity: identityCommands,
+    wifi: [
+      {
+        command: `set mqtt.wifi.ssid ${formData.get("wifiSsid") || ""}`,
+        verifyKey: "mqtt.wifi.ssid",
+        expectedValue: String(formData.get("wifiSsid") || "")
+      },
+      {
+        command: `set mqtt.wifi.pass ${formData.get("wifiPassword") || ""}`,
+        verifyKey: "mqtt.wifi.pass",
+        expectedValue: String(formData.get("wifiPassword") || "")
+      }
+    ],
+    mqtt: [
+      {
+        command: `set mqtt.uri ${formData.get("mqttUri") || ""}`,
+        verifyKey: "mqtt.uri",
+        expectedValue: String(formData.get("mqttUri") || "")
+      },
+      {
+        command: `set mqtt.username ${formData.get("mqttUsername") || ""}`,
+        verifyKey: "mqtt.username",
+        expectedValue: String(formData.get("mqttUsername") || "")
+      },
+      {
+        command: `set mqtt.password ${formData.get("mqttPassword") || ""}`,
+        verifyKey: "mqtt.password",
+        expectedValue: String(formData.get("mqttPassword") || "")
+      },
+      {
+        command: `set mqtt.topic.root ${formData.get("topicRoot") || ""}`,
+        verifyKey: "mqtt.topic.root",
+        expectedValue: String(formData.get("topicRoot") || "")
+      },
+      {
+        command: `set mqtt.iata ${formData.get("iata") || ""}`,
+        verifyKey: "mqtt.iata",
+        expectedValue: String(formData.get("iata") || "")
+      },
+      {
+        command: `set mqtt.model ${formData.get("model") || ""}`,
+        verifyKey: "mqtt.model",
+        expectedValue: String(formData.get("model") || "")
+      },
+      {
+        command: `set mqtt.client.version ${formData.get("clientVersion") || ""}`,
+        verifyKey: "mqtt.client.version",
+        expectedValue: String(formData.get("clientVersion") || "")
+      }
+    ],
+    reboot: ["reboot"]
+  };
+}
+
+function maskSensitiveCommand(command) {
+  const prefix = SENSITIVE_COMMAND_PREFIXES.find((value) => command.startsWith(value));
+  if (!prefix) return command;
+  return `${prefix}********`;
+}
+
+function commandText(entry) {
+  return typeof entry === "string" ? entry : entry.command;
+}
+
+function logSerialCommand(command) {
+  appendLog(`> ${maskSensitiveCommand(command)}`);
+}
+
+function parseMqttConnectedLine(line) {
+  const match = line.match(/mqtt\.connected\s*=\s*([^\s,;]+)/i);
+  if (!match) return null;
+
+  const value = match[1].replace(/[^\w.-]+$/g, "").toLowerCase();
+  if (["true", "1", "yes", "on", "connected"].includes(value)) {
+    return true;
+  }
+  if (["false", "0", "no", "off", "disconnected"].includes(value)) {
+    return false;
+  }
+  return null;
 }
 
 async function writeSerialCommand(command) {
@@ -230,53 +495,123 @@ async function writeSerialCommand(command) {
 
   const writer = serialPort.writable.getWriter();
   try {
-    const payload = new TextEncoder().encode(`${command}\r`);
+    const payload = new TextEncoder().encode(`${command}\r\n`);
     await writer.write(payload);
   } finally {
     writer.releaseLock();
   }
 }
 
-async function runCommandExpectOk(command, timeoutMs = 6000) {
-  appendLog(`> ${command}`);
+async function runCommandExpectReply(command, predicate = (value) => value.includes("->"), timeoutMs = 6000) {
+  logSerialCommand(command);
   await writeSerialCommand(command);
-  const line = await waitForLine((value) => value.includes("->"), timeoutMs);
+  const line = await waitForLine(predicate, timeoutMs);
+  appendLog(`[match] ${line}`);
+  return line;
+}
+
+async function runCommandExpectOk(command, timeoutMs = 6000) {
+  const line = await runCommandExpectReply(command, (value) => value.includes("->"), timeoutMs);
   if (/->\s*OK/i.test(line)) {
     return line;
   }
   throw new Error(line);
 }
 
-async function disconnectSerialSession({ silent = false } = {}) {
-  if (!serialPort) return;
-
-  try {
-    if (serialReader) {
-      try {
-        await serialReader.cancel();
-      } catch (error) {
-        if (!silent) {
-          appendLog(`Serial reader cancel warning: ${error.message}`);
-        }
-      }
-    }
-    await serialPort.close();
-  } finally {
-    serialPort = null;
-    serialReader = null;
-    serialConnected = false;
-    serialReadBuffer = "";
-    serialLoopRunning = false;
-    clearLineListeners("Serial port closed");
-    updateSerialButton();
-    setPanelState(serialState, "Serial disconnected", "panel__status--idle");
-    stateSerial.textContent = "Disconnected";
-    summarySerial.textContent = "Disconnected";
-    setCommandState(0, "is-pending", "Pending");
-    if (!silent) {
-      appendLog("Serial link closed.");
-    }
+async function resetSerialConsole() {
+  if (!serialPort || typeof serialPort.setSignals !== "function") {
+    return false;
   }
+
+  appendLog("CLI is silent. Triggering the official serial reset sequence.");
+  await serialPort.setSignals({
+    dataTerminalReady: false,
+    requestToSend: true
+  });
+  await delay(250);
+  await serialPort.setSignals({
+    dataTerminalReady: false,
+    requestToSend: false
+  });
+  await delay(1250);
+  return true;
+}
+
+async function settleSerialOperation(operation, timeoutMs, warningLabel, silent) {
+  const result = await Promise.race([
+    operation().then(() => ({ status: "ok" })).catch((error) => ({ status: "error", error })),
+    delay(timeoutMs).then(() => ({ status: "timeout" }))
+  ]);
+
+  if (result.status === "error" && !silent) {
+    appendLog(`${warningLabel}: ${result.error.message}`);
+  }
+  if (result.status === "timeout" && !silent) {
+    appendLog(`${warningLabel}: timed out`);
+  }
+}
+
+function cancelScheduledSerialDisconnect() {
+  if (scheduledSerialDisconnect !== null) {
+    window.clearTimeout(scheduledSerialDisconnect);
+    scheduledSerialDisconnect = null;
+  }
+}
+
+function scheduleSerialDisconnect(delayMs, message) {
+  cancelScheduledSerialDisconnect();
+  appendLog(message);
+  scheduledSerialDisconnect = window.setTimeout(() => {
+    scheduledSerialDisconnect = null;
+    disconnectSerialSession({ silent: true }).catch((error) => {
+      appendLog(`Serial disconnect warning: ${error.message}`);
+    });
+  }, delayMs);
+}
+
+function finalizeSerialDisconnect({ silent = false } = {}) {
+  serialPort = null;
+  serialReader = null;
+  serialConnected = false;
+  serialConnectedAt = 0;
+  serialCliReady = false;
+  serialReadBuffer = "";
+  serialLoopRunning = false;
+  clearLineListeners("Serial port closed");
+  updateSerialButton();
+  setPanelState(serialState, "Serial disconnected", "panel__status--idle");
+  setText(stateSerial, "Disconnected");
+  setText(summarySerial, "Disconnected");
+  setCommandState(0, "is-pending", "Pending");
+  if (!silent) {
+    appendLog("Serial link closed.");
+  }
+}
+
+function disconnectSerialSession({ silent = false } = {}) {
+  if (!serialPort) return Promise.resolve();
+  cancelScheduledSerialDisconnect();
+
+  const portToClose = serialPort;
+  const readerToCancel = serialReader;
+  finalizeSerialDisconnect({ silent });
+
+  return (async () => {
+    if (readerToCancel) {
+      await settleSerialOperation(
+        () => readerToCancel.cancel(),
+        600,
+        "Serial reader cancel warning",
+        silent
+      );
+    }
+    await settleSerialOperation(
+      () => portToClose.close(),
+      900,
+      "Serial port close warning",
+      silent
+    );
+  })();
 }
 
 async function connectSerial() {
@@ -289,21 +624,30 @@ async function connectSerial() {
     return;
   }
 
-  serialPort = await navigator.serial.requestPort();
+  serialPort = await requestPreferredPort();
   await serialPort.open({ baudRate: 115200 });
+  cancelScheduledSerialDisconnect();
+  serialConnectedAt = Date.now();
   serialConnected = true;
+  serialCliReady = false;
+  serialReadBuffer = "";
+  serialTextDecoder = new TextDecoder();
+  readSerialLoop();
+  appendLog("Serial link opened at 115200 baud.");
+  appendLog("Waiting for device console to settle.");
+  await delay(1200);
   updateSerialButton();
   setPanelState(serialState, "Serial connected", "panel__status--connected");
-  stateSerial.textContent = "Connected";
-  summarySerial.textContent = "Connected at 115200";
+  setText(stateSerial, "Connected");
+  setText(summarySerial, "Connected at 115200");
   setCommandState(0, "is-done", "Connected");
-  appendLog("Serial link opened at 115200 baud.");
-  readSerialLoop();
+  appendLog("Serial console is ready.");
 }
 
 function buildCommandPreview() {
-  const commands = [...buildCommandList(), "mqtt reconnect"];
-  commandPreviewPane.textContent = commands.join("\n");
+  const plan = buildConfigurationPlan({ validatePrivateKey: false });
+  const commands = [...plan.radio, ...plan.identity, ...plan.wifi, ...plan.mqtt, ...plan.reboot];
+  commandPreviewPane.textContent = commands.map((entry) => maskSensitiveCommand(commandText(entry))).join("\n");
 }
 
 function stamp() {
@@ -320,7 +664,13 @@ function appendLog(message) {
   logPane.scrollTop = logPane.scrollHeight;
 }
 
+function setText(target, value) {
+  if (!target) return;
+  target.textContent = value;
+}
+
 function setPanelState(target, text, variant) {
+  if (!target) return;
   target.textContent = text;
   target.className = `panel__status ${variant}`;
 }
@@ -338,9 +688,118 @@ function setFlashProgress(percent, text) {
   flashProgressText.textContent = text;
 }
 
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function runCommands(commands) {
+  for (const entry of commands) {
+    if (typeof entry === "string") {
+      await runCommandExpectOk(entry);
+      continue;
+    }
+
+    try {
+      await runCommandExpectOk(entry.command, 4500);
+    } catch (error) {
+      if (!entry.verifyKey || !/Timed out waiting for device response/i.test(error.message)) {
+        throw error;
+      }
+
+      appendLog(`No immediate reply for ${maskSensitiveCommand(entry.command)}. Verifying saved value.`);
+      const { value } = await readSettingValue(entry.verifyKey, 4500);
+      if (value === entry.expectedValue) {
+        appendLog(`Verified ${entry.verifyKey} via readback.`);
+        continue;
+      }
+      throw new Error(`${entry.verifyKey} did not match the requested value`);
+    }
+  }
+}
+
+async function ensureSerialCliReady() {
+  if (serialCliReady) return;
+
+  appendLog("Checking MeshCore CLI availability.");
+  const attempts = 4;
+  let resetAttempted = false;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const line = await runCommandExpectReply("ver", (value) => value.includes("->"), 4000);
+      serialCliReady = true;
+      appendLog(`MeshCore CLI ready (${line}).`);
+      return;
+    } catch (error) {
+      appendLog(`CLI probe attempt ${attempt}/${attempts} did not return a reply.`);
+      if (!resetAttempted && attempt >= 2) {
+        try {
+          const resetTriggered = await resetSerialConsole();
+          resetAttempted = resetTriggered;
+        } catch (resetError) {
+          appendLog(`Serial reset warning: ${resetError.message}`);
+          resetAttempted = true;
+        }
+      }
+      if (attempt < attempts) {
+        await delay(1200);
+      }
+    }
+  }
+
+  throw new Error("MeshCore CLI did not respond on serial");
+}
+
+async function releaseFlashSession(transport, port) {
+  if (transport && typeof transport.disconnect === "function") {
+    await settleSerialOperation(
+      () => transport.disconnect(),
+      1200,
+      "Flash disconnect warning",
+      false
+    );
+  }
+
+  if (port && (port.readable || port.writable)) {
+    await settleSerialOperation(
+      () => port.close(),
+      1200,
+      "Flash port close warning",
+      false
+    );
+  }
+
+  await delay(150);
+}
+
+async function readMqttStatus(timeoutMs = 8000) {
+  logSerialCommand("show mqtt");
+  await writeSerialCommand("show mqtt");
+  const line = await waitForLine((value) => value.toLowerCase().includes("mqtt.connected="), timeoutMs);
+  const connected = parseMqttConnectedLine(line);
+
+  if (connected === null) {
+    throw new Error(`Unrecognized MQTT status: ${line}`);
+  }
+
+  return { connected, line };
+}
+
+async function readSettingValue(key, timeoutMs = 6000) {
+  const line = await runCommandExpectReply(`get ${key}`, (value) => value.includes("->"), timeoutMs);
+  const match = line.match(/->\s*(.+)$/);
+  const rawValue = match ? match[1].trim() : "";
+  return {
+    line,
+    value: rawValue.replace(/^>\s*/, "")
+  };
+}
+
 async function loadEspTool() {
   if (!esptoolModulePromise) {
-    esptoolModulePromise = import("https://unpkg.com/esptool-js@0.5.6/lib/index.js?module");
+    esptoolModulePromise = import("/assets/vendor/esptool-js-bundle.js?v=20260308-1532");
   }
   return esptoolModulePromise;
 }
@@ -380,6 +839,15 @@ async function fetchBinary(path) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+async function blobToBinaryString(blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let result = "";
+  for (let index = 0; index < bytes.length; index += 1) {
+    result += String.fromCharCode(bytes[index]);
+  }
+  return result;
+}
+
 async function flashFirmware(kind) {
   if (flashingNow) {
     appendLog("Flash already in progress.");
@@ -405,90 +873,106 @@ async function flashFirmware(kind) {
 
   try {
     if (serialConnected) {
-      appendLog("Closing live serial session before flash.");
+      appendLog("Disconnecting the current serial session before flashing.");
       await disconnectSerialSession({ silent: true });
     }
+    setFlashProgress(8, "Waiting for serial permission");
+    appendLog("Choose the board USB serial port in the browser prompt.");
+    port = await navigator.serial.requestPort();
+    if (typeof port.getInfo === "function") {
+      preferredSerialPortInfo = port.getInfo();
+    }
+    appendLog("Serial device selected for flashing.");
 
+    flashButton.disabled = true;
+    updateButton.disabled = true;
     setPanelState(flashState, "Connecting", "panel__status--busy");
     stateFlash.textContent = kind === "full" ? "Preparing full image" : "Preparing update image";
     setFlashProgress(4, "Loading browser flasher");
 
-    const { ESPLoader, Transport } = await loadEspTool();
-    setFlashProgress(10, "Requesting serial device");
-    port = await navigator.serial.requestPort();
+    appendLog("Loading browser flasher library.");
+    const { ESPLoader, Transport, HardReset } = await loadEspTool();
+    setFlashProgress(12, "Preparing flasher");
 
     setFlashProgress(16, "Connecting to bootloader");
-    transport = new Transport(port);
-
-    const loader = new ESPLoader({
-      transport,
-      baudrate: 460800,
-      romBaudrate: 115200,
-      debugLogging: false,
-      terminal: createFlashTerminal()
-    });
-
-    const chip = await loader.main();
-    appendLog(`Bootloader connected: ${chip || currentBoard.chipFamily}`);
-    setFlashProgress(24, "Downloading firmware image");
+    appendLog("Connecting to bootloader.");
+    transport = new Transport(port, true);
 
     const imageData = await fetchBinary(imagePath);
     appendLog(`Fetched ${imageName} (${imageData.byteLength} bytes)`);
 
-    setFlashProgress(32, "Starting flash");
-    try {
-      await loader.runStub();
-      if (typeof loader.changeBaud === "function") {
-        await loader.changeBaud();
-      }
-    } catch (error) {
-      appendLog(`Stub loader note: ${error.message}`);
-    }
-
-    await loader.writeFlash({
+    const flashOptions = {
+      debugLogging: false,
+      terminal: createFlashTerminal(),
+      transport,
+      baudrate: 115200,
+      romBaudrate: 115200,
+      flashSize: "keep",
+      flashMode: "keep",
+      flashFreq: "keep",
+      eraseAll: kind === "full",
+      compress: true,
       fileArray: [
         {
-          data: imageData,
+          data: await blobToBinaryString(new Blob([imageData])),
           address
         }
       ],
-      flashMode: "keep",
-      flashFreq: "keep",
-      flashSize: "keep",
-      eraseAll: kind === "full",
-      compress: true,
       reportProgress(_fileIndex, written, total) {
-        const percent = total > 0 ? Math.max(32, Math.min(98, Math.round((written / total) * 100))) : 32;
+        const lowerBound = kind === "full" ? 24 : 24;
+        const percent = total > 0 ? Math.max(lowerBound, Math.min(98, Math.round((written / total) * 100))) : lowerBound;
         setFlashProgress(percent, `Writing ${kind} image`);
       }
-    });
+    };
 
+    const loader = new ESPLoader(flashOptions);
+    loader.hr = new HardReset(transport);
+
+    const chip = await loader.main();
+    appendLog(`Bootloader connected: ${chip || currentBoard.chipFamily}`);
+    setFlashProgress(kind === "full" ? 26 : 24, kind === "full" ? "Erasing and writing full image" : "Starting flash");
+    appendLog("Reading flash identity.");
+    await loader.flashId();
+    if (kind === "full") {
+      appendLog("Full image selected. Flash erase is enabled.");
+    }
+    await loader.writeFlash(flashOptions);
+    await delay(100);
     if (typeof loader.after === "function") {
       await loader.after("hard_reset");
+      await delay(100);
+    }
+    if (loader.hr && typeof loader.hr.reset === "function") {
+      await loader.hr.reset();
     }
 
     flashComplete = true;
     configApplied = false;
     setPanelState(flashState, "Flashed", "panel__status--success");
     setFlashProgress(100, "Flash complete");
-    stateFlash.textContent = kind === "full" ? "Full image flashed" : "Update image flashed";
-    summaryFirmware.textContent = imageName;
-    summaryConfig.textContent = "Not sent";
-    stateMqtt.textContent = "Awaiting config";
-    summaryMqtt.textContent = "Awaiting verify";
-    setPanelState(settingsState, "Ready to configure", "panel__status--ready");
+    setText(stateFlash, kind === "full" ? "Full image flashed" : "Update image flashed");
+    setText(summaryFirmware, imageName);
+    setText(summaryConfig, "Not sent");
+    setText(stateMqtt, "Awaiting apply");
+    setText(summaryMqtt, "Awaiting verify");
+    setPanelState(settingsState, "Apply radio + MQTT settings", "panel__status--ready");
     setPanelState(serialState, "Reconnect serial", "panel__status--idle");
     setPanelState(verifyState, "Waiting", "panel__status--idle");
-    appendLog(`Flash completed successfully for ${currentBoard.label}. Reconnect serial to configure the device.`);
+    updateSerialButton();
+    appendLog(`Flash completed successfully for ${currentBoard.label}. Reconnect serial, then apply the selected radio and MQTT settings.`);
   } finally {
     flashingNow = false;
-    if (transport && typeof transport.disconnect === "function") {
-      try {
-        await transport.disconnect();
-      } catch (error) {
-        appendLog(`Flash disconnect warning: ${error.message}`);
-      }
-    }
+    flashButton.disabled = !currentBoard?.artifactBase;
+    updateButton.disabled = !currentBoard?.artifactBase;
+    window.setTimeout(() => {
+      releaseFlashSession(transport, port)
+        .then(() => {
+          appendLog("Flash session released. The page is ready for serial reconnect.");
+        })
+        .catch((error) => {
+          appendLog(`Flash cleanup warning: ${error.message}`);
+        });
+    }, 1600);
   }
 }
 
@@ -498,11 +982,56 @@ boardSelect.addEventListener("change", () => {
   appendLog(`Board selected: ${board ? board.label : boardSelect.value}`);
 });
 
+boardTrigger.addEventListener("click", () => {
+  if (boardMenu.hidden) {
+    openBoardMenu();
+  } else {
+    closeBoardMenu();
+  }
+});
+
+boardSearch.addEventListener("input", () => {
+  filterBoards(boardSearch.value);
+});
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest("#board-combobox")) {
+    closeBoardMenu();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closeBoardMenu();
+  }
+});
+
 settingsForm.addEventListener("input", () => {
   buildCommandPreview();
 });
 
+settingsForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+});
+
+radioPreset.addEventListener("change", () => {
+  if (radioPreset.value !== "CUSTOM") {
+    applyRadioPreset(radioPreset.value);
+  } else {
+    syncRadioCommand();
+  }
+  buildCommandPreview();
+});
+
+[radioFrequency, radioBandwidth, radioSf, radioCr].forEach((input) => {
+  input.addEventListener("input", () => {
+    updateRadioPresetFromInputs();
+    buildCommandPreview();
+  });
+});
+
 flashButton.addEventListener("click", async () => {
+  appendLog("Flash Full Firmware clicked.");
   try {
     await flashFirmware("full");
   } catch (error) {
@@ -514,6 +1043,7 @@ flashButton.addEventListener("click", async () => {
 });
 
 updateButton.addEventListener("click", async () => {
+  appendLog("Flash Update Only clicked.");
   try {
     await flashFirmware("update");
   } catch (error) {
@@ -542,7 +1072,8 @@ serialButton.addEventListener("click", async () => {
   }
 });
 
-configureButton.addEventListener("click", async () => {
+async function applySettings() {
+  appendLog("Apply Settings clicked.");
   if (!serialConnected) {
     setPanelState(serialState, "Serial required", "panel__status--error");
     appendLog("Cannot configure device until the serial link is connected.");
@@ -557,27 +1088,55 @@ configureButton.addEventListener("click", async () => {
   setCommandState(1, "is-running", "Running");
   setCommandState(2, "is-pending", "Pending");
   setCommandState(3, "is-pending", "Pending");
+  setCommandState(4, "is-pending", "Pending");
+  setCommandState(5, "is-pending", "Pending");
 
   try {
-    for (const command of buildCommandList().slice(0, 2)) {
-      await runCommandExpectOk(command);
+    const plan = buildConfigurationPlan();
+
+    if (Date.now() - serialConnectedAt < 2500) {
+      appendLog("Allowing a short startup delay before sending the first CLI command.");
+      await delay(800);
     }
+
+    await ensureSerialCliReady();
+    await runCommandExpectOk(plan.radio[0], 10000);
     setCommandState(1, "is-done", "Written");
     setCommandState(2, "is-running", "Running");
 
-    for (const command of buildCommandList().slice(2)) {
-      await runCommandExpectOk(command);
+    if (plan.identity.length > 0) {
+      await runCommands(plan.identity);
+      if (plan.identity.some((command) => command.startsWith("set name "))) {
+        const expectedName = String(repeaterNameInput?.value || "").trim();
+        const { value } = await readSettingValue("name");
+        if (value !== expectedName) {
+          throw new Error(`Repeater name verification failed (device reports: ${value || "blank"})`);
+        }
+      }
+      setCommandState(2, "is-done", "Written");
+    } else {
+      setCommandState(2, "is-done", "Skipped");
     }
-    setCommandState(2, "is-done", "Written");
     setCommandState(3, "is-running", "Running");
 
-    await runCommandExpectOk("mqtt reconnect", 8000);
-    setCommandState(3, "is-done", "Done");
-    setPanelState(settingsState, "Saved", "panel__status--success");
-    summaryConfig.textContent = "Commands applied";
-    setPanelState(verifyState, "Ready to verify", "panel__status--ready");
+    await runCommands(plan.wifi);
+    setCommandState(3, "is-done", "Written");
+    setCommandState(4, "is-running", "Running");
+
+    await runCommands(plan.mqtt);
+    setCommandState(4, "is-done", "Written");
+    setCommandState(5, "is-running", "Rebooting");
+
+    logSerialCommand(plan.reboot[0]);
+    await writeSerialCommand(plan.reboot[0]);
+    setCommandState(5, "is-done", "Rebooted");
+    setPanelState(settingsState, "Saved, rebooted", "panel__status--success");
+    setText(summaryConfig, "Commands applied, rebooted");
+    setText(stateMqtt, "Rebooting");
+    setText(summaryMqtt, "Reconnect serial to verify");
+    setPanelState(verifyState, "Reconnect serial after reboot", "panel__status--idle");
     configApplied = true;
-    appendLog("Device configuration completed.");
+    scheduleSerialDisconnect(2200, "Device configuration completed. Waiting for the reboot, then closing the serial session.");
   } catch (error) {
     setPanelState(settingsState, "Failed", "panel__status--error");
     appendLog(`Configuration failed: ${error.message}`);
@@ -587,9 +1146,18 @@ configureButton.addEventListener("click", async () => {
       setCommandState(2, "is-failed", "Failed");
     } else if (commandItems[3].classList.contains("is-running")) {
       setCommandState(3, "is-failed", "Failed");
+    } else if (commandItems[4].classList.contains("is-running")) {
+      setCommandState(4, "is-failed", "Failed");
+    } else if (commandItems[5].classList.contains("is-running")) {
+      setCommandState(5, "is-failed", "Failed");
     }
   }
-});
+}
+
+settingsApplyButton.addEventListener("click", applySettings);
+if (configureButton) {
+  configureButton.addEventListener("click", applySettings);
+}
 
 reconnectButton.addEventListener("click", async () => {
   if (!serialConnected) {
@@ -599,17 +1167,26 @@ reconnectButton.addEventListener("click", async () => {
   }
 
   setPanelState(verifyState, "Checking", "panel__status--busy");
-  stateMqtt.textContent = "Reconnecting";
+  setText(stateMqtt, "Reconnecting");
   try {
     await runCommandExpectOk("mqtt reconnect", 8000);
+    await delay(1500);
+    const { connected } = await readMqttStatus();
+    if (!connected) {
+      setPanelState(verifyState, "MQTT offline", "panel__status--error");
+      setText(stateMqtt, "Disconnected");
+      setText(summaryMqtt, "mqtt.connected=false");
+      appendLog("MQTT reconnect command completed, but the device still reports mqtt.connected=false.");
+      return;
+    }
     setPanelState(verifyState, "MQTT online", "panel__status--success");
-    stateMqtt.textContent = "Connected";
-    summaryMqtt.textContent = "Broker reachable";
-    appendLog("MQTT reconnect command completed.");
+    setText(stateMqtt, "Connected");
+    setText(summaryMqtt, "mqtt.connected=true");
+    appendLog("MQTT reconnect command completed and the device reports mqtt.connected=true.");
   } catch (error) {
     setPanelState(verifyState, "Reconnect failed", "panel__status--error");
-    stateMqtt.textContent = "Failed";
-    summaryMqtt.textContent = "Reconnect failed";
+    setText(stateMqtt, "Failed");
+    setText(summaryMqtt, "Reconnect failed");
     appendLog(`Reconnect failed: ${error.message}`);
   }
 });
@@ -622,15 +1199,22 @@ verifyButton.addEventListener("click", async () => {
   }
 
   setPanelState(verifyState, "Checking", "panel__status--busy");
-  appendLog("> show mqtt");
-
   try {
-    await writeSerialCommand("show mqtt");
-    await waitForLine((line) => line.includes("mqtt.connected="), 8000);
+    const { connected } = await readMqttStatus();
+    if (!connected) {
+      setPanelState(verifyState, "MQTT offline", "panel__status--error");
+      setText(stateMqtt, "Disconnected");
+      setText(summaryMqtt, "mqtt.connected=false");
+      appendLog("Verification completed: device reports mqtt.connected=false.");
+      return;
+    }
     setPanelState(verifyState, "MQTT checked", "panel__status--success");
-    summaryMqtt.textContent = "Verification complete";
+    setText(stateMqtt, "Connected");
+    setText(summaryMqtt, "mqtt.connected=true");
+    appendLog("Verification completed: device reports mqtt.connected=true.");
   } catch (error) {
     setPanelState(verifyState, "Verify failed", "panel__status--error");
+    setText(stateMqtt, "Unknown");
     appendLog(`Verification failed: ${error.message}`);
   }
 });
@@ -642,6 +1226,8 @@ clearLogButton.addEventListener("click", () => {
 
 populateBoards();
 evaluateCapabilities();
+applyRadioPreset("EU_NARROW");
 buildCommandPreview();
 updateSerialButton();
+closeBoardMenu();
 appendLog(`Loaded ${firmwareData.boards.length} board definitions.`);

@@ -1,0 +1,6 @@
+.git
+.env
+http-preview.log
+http-preview.pid
+compose.override.yml
+node_modules

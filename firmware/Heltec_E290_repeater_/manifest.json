@@ -1,0 +1,15 @@
+{
+  "base_env": "Heltec_E290_repeater_",
+  "build_env": "Heltec_E290_repeater__mqtt_dynamic",
+  "firmware_name": "meshcore-mqtt",
+  "firmware_version": "v1.14.0",
+  "built_at_utc": "2026-03-08T14:34:13Z",
+  "artifacts": {
+    "update": "meshcore-mqtt-v1.14.0-Heltec_E290_repeater_-update.bin",
+    "full": "meshcore-mqtt-v1.14.0-Heltec_E290_repeater_-full.bin"
+  },
+  "flash_offsets": {
+    "update": "0x10000",
+    "full": "0x00000"
+  }
+}
