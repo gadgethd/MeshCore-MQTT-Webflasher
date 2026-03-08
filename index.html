@@ -24,7 +24,7 @@
           </div>
           <div class="meta-pill">
             <span class="meta-pill__label">Firmware</span>
-            <span class="meta-pill__value" id="firmware-version">v1.14.0</span>
+            <span class="meta-pill__value" id="firmware-version">Loading</span>
           </div>
         </div>
       </header>
@@ -52,32 +52,28 @@
                 <span class="panel__status panel__status--ready">Ready</span>
               </div>
               <div class="board-grid">
-                <label class="field field--span-2">
+                <div class="field field--span-2">
                   <span class="field__label">Supported board</span>
-                  <select id="board-select">
-                    <option>Heltec v3 Repeater</option>
-                    <option>Heltec v4 Repeater</option>
-                    <option>LilyGo T3S3 SX1262</option>
-                    <option>T-Beam SX1262</option>
-                    <option>RAK 3112</option>
-                    <option>Xiao S3 WIO</option>
-                  </select>
-                </label>
+                  <div class="board-picker">
+                    <select id="board-select"></select>
+                    <button class="button button--primary board-picker__action" id="serial-button">Connect Serial</button>
+                  </div>
+                </div>
                 <div class="info-card">
                   <span class="info-card__label">Firmware family</span>
-                  <strong>meshcore-mqtt</strong>
+                  <strong id="firmware-family">Loading</strong>
                 </div>
                 <div class="info-card">
                   <span class="info-card__label">Latest build</span>
-                  <strong id="build-label">v1.14.0</strong>
+                  <strong id="build-label">Loading</strong>
                 </div>
                 <div class="info-card">
                   <span class="info-card__label">Flash package</span>
-                  <strong id="flash-package">full + update</strong>
+                  <strong id="flash-package">Loading</strong>
                 </div>
                 <div class="info-card">
                   <span class="info-card__label">Hardware check</span>
-                  <strong>Heltec v3 verified</strong>
+                  <strong id="hardware-check">Loading</strong>
                 </div>
               </div>
             </section>
@@ -95,6 +91,16 @@
                 <button class="button button--secondary" id="update-button">Flash Update Only</button>
                 <button class="button button--ghost" id="manifest-button">View Manifest</button>
               </div>
+              <div class="artifact-strip">
+                <div class="artifact-strip__item">
+                  <span>Full Image</span>
+                  <strong id="artifact-full-name">Loading</strong>
+                </div>
+                <div class="artifact-strip__item">
+                  <span>Update Image</span>
+                  <strong id="artifact-update-name">Loading</strong>
+                </div>
+              </div>
               <div class="progress-block">
                 <div class="progress-block__track">
                   <div class="progress-block__bar" id="flash-progress-bar"></div>
@@ -106,7 +112,7 @@
               </div>
               <div class="note-list">
                 <p>Use the full image for first installs. Use the update image when the board already has the correct partition layout.</p>
-                <p>The browser handles USB flashing locally. Firmware binaries are served from this host only.</p>
+                <p>The browser handles flashing over Web Serial locally. Firmware binaries are served from this host only.</p>
               </div>
             </section>
 
@@ -167,9 +173,9 @@
                 <span class="panel__status panel__status--idle" id="serial-state">Serial disconnected</span>
               </div>
               <div class="action-row">
-                <button class="button button--primary" id="serial-button">Connect Serial</button>
                 <button class="button button--secondary" id="configure-button">Apply Settings</button>
-                <button class="button button--ghost" id="reconnect-button">Run MQTT Reconnect</button>
+                <button class="button button--ghost" id="reconnect-button">Reconnect MQTT</button>
+                <button class="button button--ghost" id="verify-button">Run Verification</button>
               </div>
               <ol class="command-list" id="command-list">
                 <li class="command-list__item is-pending"><span>Connect USB serial</span><strong>Pending</strong></li>
@@ -177,6 +183,15 @@
                 <li class="command-list__item is-pending"><span>Write MQTT settings</span><strong>Pending</strong></li>
                 <li class="command-list__item is-pending"><span>Trigger reconnect</span><strong>Pending</strong></li>
               </ol>
+              <div class="command-preview">
+                <div class="panel__header panel__header--compact">
+                  <div>
+                    <p class="panel__eyebrow">Serial Payload</p>
+                    <h3>Command Preview</h3>
+                  </div>
+                </div>
+                <div class="command-preview__pane" id="command-preview-pane" aria-live="polite"></div>
+              </div>
             </section>
           </div>
         </section>
@@ -192,7 +207,7 @@
             <div class="state-grid">
               <div class="state-chip">
                 <span class="state-chip__label">Board</span>
-                <strong id="state-board">Heltec v3 Repeater</strong>
+                <strong id="state-board">Loading</strong>
               </div>
               <div class="state-chip">
                 <span class="state-chip__label">Flash</span>
@@ -207,6 +222,21 @@
                 <strong id="state-mqtt">Awaiting verify</strong>
               </div>
             </div>
+          </section>
+
+          <section class="panel panel--compact">
+            <div class="panel__header">
+              <div>
+                <p class="panel__eyebrow">Browser</p>
+                <h2>Capability Check</h2>
+              </div>
+            </div>
+            <ul class="summary-list">
+              <li><span>Secure Context</span><strong id="cap-secure">Checking</strong></li>
+              <li><span>Web Serial</span><strong id="cap-serial">Checking</strong></li>
+              <li><span>Web Serial Flasher</span><strong id="cap-usb">Checking</strong></li>
+              <li><span>Manifest Source</span><strong id="cap-manifest">Local catalog</strong></li>
+            </ul>
           </section>
 
           <section class="panel panel--compact">
@@ -241,6 +271,7 @@
       </main>
     </div>
 
+    <script src="assets/firmware-data.js"></script>
     <script src="assets/app.js"></script>
   </body>
 </html>

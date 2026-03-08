@@ -204,6 +204,16 @@ select {
   margin-bottom: 16px;
 }
 
+.panel__header--compact {
+  margin-bottom: 12px;
+}
+
+.panel h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
 .panel__status {
   padding: 8px 12px;
   border-radius: 999px;
@@ -264,6 +274,17 @@ select {
   grid-column: 1 / -1;
 }
 
+.board-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.board-picker__action {
+  min-width: 150px;
+}
+
 .field__label {
   color: var(--muted);
   font-size: 0.84rem;
@@ -292,6 +313,32 @@ button:focus {
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 16px;
+}
+
+.artifact-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.artifact-strip__item {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(7, 17, 29, 0.72);
+}
+
+.artifact-strip__item span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.artifact-strip__item strong {
+  font-size: 0.9rem;
+  word-break: break-word;
 }
 
 .button {
@@ -406,6 +453,25 @@ button:focus {
   color: var(--danger);
 }
 
+.command-preview {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.command-preview__pane {
+  height: 180px;
+  overflow: auto;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(94, 132, 171, 0.24);
+  background: linear-gradient(180deg, rgba(5, 11, 18, 0.98), rgba(6, 13, 22, 0.98));
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .log-pane {
   height: 340px;
   overflow: auto;
@@ -470,6 +536,14 @@ button:focus {
 
   .notice-bar {
     flex-direction: column;
+  }
+
+  .artifact-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .board-picker {
+    grid-template-columns: 1fr;
   }
 
   .topbar__meta {
