@@ -68,7 +68,7 @@ const capUsb = document.getElementById("cap-usb");
 const capManifest = document.getElementById("cap-manifest");
 
 const firmwareData = window.FIRMWARE_DATA || { boards: [] };
-const FIRMWARE_FETCH_VERSION = "20260309-2052";
+const FIRMWARE_FETCH_VERSION = "20260309-2102";
 
 let flashComplete = false;
 let serialConnected = false;
@@ -92,25 +92,102 @@ let savedStep4Settings = null;
 const boardManifestCache = new Map();
 
 const RADIO_PRESETS = {
-  US_NARROW: {
-    label: "USA/Canada (Narrow)",
+  AU_RECOMMENDED: {
+    label: "Australia",
+    frequency: "915.800",
+    bandwidth: "250",
+    sf: "10",
+    cr: "5"
+  },
+  AU_VICTORIA: {
+    label: "Australia: Victoria",
+    frequency: "916.575",
+    bandwidth: "62.5",
+    sf: "7",
+    cr: "8"
+  },
+  EU_UK_RECOMMENDED: {
+    label: "EU/UK (Narrow/Recommended)",
+    frequency: "869.618",
+    bandwidth: "62.5",
+    sf: "8",
+    cr: "8"
+  },
+  EU_UK_LONG_RANGE: {
+    label: "EU/UK (Long Range)",
+    frequency: "869.525",
+    bandwidth: "250",
+    sf: "11",
+    cr: "5"
+  },
+  EU_UK_MEDIUM_RANGE: {
+    label: "EU/UK (Medium Range)",
+    frequency: "869.525",
+    bandwidth: "250",
+    sf: "10",
+    cr: "5"
+  },
+  CZECH_NARROW: {
+    label: "Czech Republic (Narrow)",
+    frequency: "869.525",
+    bandwidth: "62.5",
+    sf: "7",
+    cr: "5"
+  },
+  EU_433_LONG_RANGE: {
+    label: "EU 433MHz (Long Range)",
+    frequency: "433.650",
+    bandwidth: "250",
+    sf: "11",
+    cr: "5"
+  },
+  NZ_RECOMMENDED: {
+    label: "New Zealand",
+    frequency: "917.375",
+    bandwidth: "250",
+    sf: "11",
+    cr: "5"
+  },
+  NZ_NARROW: {
+    label: "New Zealand (Narrow)",
+    frequency: "917.375",
+    bandwidth: "62.5",
+    sf: "7",
+    cr: "5"
+  },
+  PORTUGAL_433: {
+    label: "Portugal 433",
+    frequency: "433.375",
+    bandwidth: "62.5",
+    sf: "9",
+    cr: "6"
+  },
+  PORTUGAL_868: {
+    label: "Portugal 868",
+    frequency: "869.618",
+    bandwidth: "62.5",
+    sf: "7",
+    cr: "6"
+  },
+  SWITZERLAND: {
+    label: "Switzerland",
+    frequency: "869.618",
+    bandwidth: "62.5",
+    sf: "8",
+    cr: "8"
+  },
+  US_CA_RECOMMENDED: {
+    label: "USA/Canada (Recommended)",
     frequency: "910.525",
     bandwidth: "62.5",
     sf: "7",
     cr: "5"
   },
-  EU_NARROW: {
-    label: "Europe (Narrow)",
-    frequency: "869.525",
-    bandwidth: "62.5",
-    sf: "8",
-    cr: "5"
-  },
-  AU_NZ: {
-    label: "Australia/NZ",
-    frequency: "916.8",
-    bandwidth: "125",
-    sf: "9",
+  VIETNAM: {
+    label: "Vietnam",
+    frequency: "920.250",
+    bandwidth: "250",
+    sf: "11",
     cr: "5"
   }
 };
@@ -1774,7 +1851,7 @@ clearLogButton.addEventListener("click", () => {
 
 populateBoards();
 evaluateCapabilities();
-applyRadioPreset("EU_NARROW");
+applyRadioPreset("EU_UK_RECOMMENDED");
 buildCommandPreview();
 updateSerialButton();
 closeBoardMenu();
