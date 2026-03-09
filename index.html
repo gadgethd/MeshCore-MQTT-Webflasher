@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MeshCore MQTT Web Flasher</title>
-    <link rel="stylesheet" href="assets/styles.css?v=20260308-2134">
+    <link rel="stylesheet" href="assets/styles.css?v=20260309-0120">
   </head>
   <body>
     <div class="app-shell">
@@ -43,10 +43,45 @@
       <main class="workspace">
         <section class="workflow">
           <div class="workflow__content">
-            <section class="panel panel--wide step-panel" id="choose-board">
+            <section class="panel panel--wide step-panel" id="read-device">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Step 1</p>
+                  <h2>Read Current Device Info</h2>
+                </div>
+                <span class="panel__status panel__status--idle" id="device-read-state">Not read</span>
+              </div>
+              <div class="action-row">
+                <button class="button button--primary" id="capture-device-button" type="button">Read Current Device Info</button>
+              </div>
+              <div class="state-grid device-snapshot-grid">
+                <div class="state-chip">
+                  <span class="state-chip__label">Current Name</span>
+                  <strong id="captured-name">Not captured</strong>
+                </div>
+                <div class="state-chip">
+                  <span class="state-chip__label">Current Latitude</span>
+                  <strong id="captured-lat">Not captured</strong>
+                </div>
+                <div class="state-chip">
+                  <span class="state-chip__label">Current Longitude</span>
+                  <strong id="captured-lon">Not captured</strong>
+                </div>
+                <div class="state-chip">
+                  <span class="state-chip__label">Current Private Key</span>
+                  <strong id="captured-private-key">Not captured</strong>
+                </div>
+              </div>
+              <div class="note-list">
+                <p>Read the current device values before flashing. The browser stores the captured name, coordinates, and private key locally for this board and pre-fills Step 4.</p>
+                <p id="captured-meta">Nothing captured in this browser for this board yet.</p>
+              </div>
+            </section>
+
+            <section class="panel panel--wide step-panel" id="choose-board">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Step 2</p>
                   <h2>Choose Board</h2>
                 </div>
                 <span class="panel__status panel__status--ready">Ready</span>
@@ -101,7 +136,7 @@
             <section class="panel panel--wide step-panel" id="flash-firmware">
               <div class="panel__header">
                 <div>
-                  <p class="panel__eyebrow">Step 2</p>
+                  <p class="panel__eyebrow">Step 3</p>
                   <h2>Choose Radio Settings and Flash Firmware</h2>
                 </div>
                 <span class="panel__status panel__status--idle" id="flash-state">Idle</span>
@@ -171,7 +206,7 @@
               </div>
               <div class="note-list">
                 <p>Choose the radio profile first, then flash the firmware. The selected radio command is applied afterward in the Configure Device step, followed by a reboot so the radio changes take effect.</p>
-                <p>Use the full image for first installs. Use the update image when the board already has the correct partition layout.</p>
+                <p>Use the update image for normal upgrades. It writes the merged firmware image at <code>0x00000</code> without a full erase so saved device settings stay intact. Use the full image only for first installs or recovery; the browser will warn that it erases flash and may wipe saved settings.</p>
                 <p>The preset populates the MeshCore CLI command, but you can edit frequency, bandwidth, SF, and CR manually.</p>
                 <p>The browser handles flashing over Web Serial locally. Firmware binaries are served from this host only.</p>
               </div>
@@ -180,10 +215,36 @@
             <section class="panel panel--wide step-panel" id="settings">
               <div class="panel__header">
                 <div>
-                  <p class="panel__eyebrow">Step 3</p>
+                  <p class="panel__eyebrow">Step 4</p>
                   <h2>Enter Device, WiFi, and MQTT Settings</h2>
                 </div>
                 <span class="panel__status panel__status--idle" id="settings-state">Pending</span>
+              </div>
+              <div class="captured-values">
+                <div class="panel__header panel__header--compact">
+                  <div>
+                    <p class="panel__eyebrow">Captured Values</p>
+                    <h3>Stored in This Browser</h3>
+                  </div>
+                </div>
+                <div class="state-grid device-snapshot-grid">
+                  <div class="state-chip">
+                    <span class="state-chip__label">Name</span>
+                    <strong id="prefill-name">Not captured</strong>
+                  </div>
+                  <div class="state-chip">
+                    <span class="state-chip__label">Latitude</span>
+                    <strong id="prefill-lat">Not captured</strong>
+                  </div>
+                  <div class="state-chip">
+                    <span class="state-chip__label">Longitude</span>
+                    <strong id="prefill-lon">Not captured</strong>
+                  </div>
+                  <div class="state-chip">
+                    <span class="state-chip__label">Private Key</span>
+                    <strong id="prefill-private-key">Not captured</strong>
+                  </div>
+                </div>
               </div>
               <form class="settings-grid" id="settings-form">
                 <label class="field field--span-2">
@@ -208,6 +269,26 @@
                     spellcheck="false"
                   >
                   <span class="field__hint">Optional. MeshCore expects a 128-character hex private key and applies it after reboot.</span>
+                </label>
+                <label class="field">
+                  <span class="field__label">Latitude</span>
+                  <input
+                    id="device-lat"
+                    type="text"
+                    name="deviceLat"
+                    placeholder="Leave blank to keep the current latitude"
+                    inputmode="decimal"
+                  >
+                </label>
+                <label class="field">
+                  <span class="field__label">Longitude</span>
+                  <input
+                    id="device-lon"
+                    type="text"
+                    name="deviceLon"
+                    placeholder="Leave blank to keep the current longitude"
+                    inputmode="decimal"
+                  >
                 </label>
                 <label class="field">
                   <span class="field__label">WiFi SSID</span>
@@ -247,7 +328,7 @@
                 </label>
               </form>
               <div class="settings-actions">
-                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the repeater name, optional private key, WiFi, and MQTT settings without leaving Step 3.</p>
+                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the captured or edited repeater name, coordinates, optional private key, WiFi, and MQTT settings without leaving Step 4.</p>
                 <div class="action-row settings-actions__row">
                   <button class="button button--primary settings-actions__serial" id="serial-button" type="button">Connect Serial</button>
                   <button class="button button--secondary settings-actions__apply" id="settings-apply-button" type="button">Apply Settings</button>
@@ -260,7 +341,7 @@
             <section class="panel panel--wide step-panel" id="configure-device">
               <div class="panel__header">
                 <div>
-                  <p class="panel__eyebrow">Step 4</p>
+                  <p class="panel__eyebrow">Step 5</p>
                   <h2>Configuration Progress</h2>
                 </div>
                 <span class="panel__status panel__status--idle" id="serial-state">Serial disconnected</span>
@@ -346,7 +427,7 @@
       </main>
     </div>
 
-    <script src="assets/firmware-data.js?v=20260308-2141"></script>
-    <script src="assets/app.js?v=20260308-2141"></script>
+    <script src="assets/firmware-data.js?v=20260309-0120"></script>
+    <script src="assets/app.js?v=20260309-0120"></script>
   </body>
 </html>

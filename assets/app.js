@@ -15,6 +15,17 @@ const flashProgressText = document.getElementById("flash-progress-text");
 const flashProgressPercent = document.getElementById("flash-progress-percent");
 const artifactFullName = document.getElementById("artifact-full-name");
 const artifactUpdateName = document.getElementById("artifact-update-name");
+const deviceReadState = document.getElementById("device-read-state");
+const captureDeviceButton = document.getElementById("capture-device-button");
+const capturedName = document.getElementById("captured-name");
+const capturedLat = document.getElementById("captured-lat");
+const capturedLon = document.getElementById("captured-lon");
+const capturedPrivateKey = document.getElementById("captured-private-key");
+const capturedMeta = document.getElementById("captured-meta");
+const prefillName = document.getElementById("prefill-name");
+const prefillLat = document.getElementById("prefill-lat");
+const prefillLon = document.getElementById("prefill-lon");
+const prefillPrivateKey = document.getElementById("prefill-private-key");
 const radioPreset = document.getElementById("radio-preset");
 const radioFrequency = document.getElementById("radio-frequency");
 const radioBandwidth = document.getElementById("radio-bandwidth");
@@ -49,6 +60,8 @@ const settingsForm = document.getElementById("settings-form");
 const commandPreviewPane = document.getElementById("command-preview-pane");
 const repeaterNameInput = document.getElementById("repeater-name");
 const privateKeyInput = document.getElementById("private-key");
+const deviceLatInput = document.getElementById("device-lat");
+const deviceLonInput = document.getElementById("device-lon");
 const capSecure = document.getElementById("cap-secure");
 const capSerial = document.getElementById("cap-serial");
 const capUsb = document.getElementById("cap-usb");
@@ -73,6 +86,8 @@ let serialConnectedAt = 0;
 let serialCliReady = false;
 let preferredSerialPortInfo = null;
 let scheduledSerialDisconnect = null;
+let capturedDeviceInfo = null;
+const boardManifestCache = new Map();
 
 const RADIO_PRESETS = {
   US_NARROW: {
@@ -116,6 +131,73 @@ function resolveArtifactUrl(path) {
   return new URL(path, window.location.href).toString();
 }
 
+function browserCaptureKey(boardId) {
+  return `meshcore-mqtt-device-info:${boardId}`;
+}
+
+function maskPrivateKeyValue(value) {
+  if (!value) return "Not captured";
+  if (value.length <= 16) return "********";
+  return `${value.slice(0, 8)}...${value.slice(-8)}`;
+}
+
+function formatCapturedValue(value) {
+  return value ? value : "Not captured";
+}
+
+function formatCapturedTimestamp(timestamp) {
+  if (!timestamp) return "Nothing captured in this browser for this board yet.";
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return "Captured in this browser.";
+  }
+  return `Captured in this browser at ${date.toLocaleString("en-GB", { hour12: false })}.`;
+}
+
+function renderCapturedDeviceInfo(info) {
+  const nameValue = formatCapturedValue(info?.name || "");
+  const latValue = formatCapturedValue(info?.lat || "");
+  const lonValue = formatCapturedValue(info?.lon || "");
+  const keyValue = info?.privateKey ? maskPrivateKeyValue(info.privateKey) : "Not captured";
+
+  setText(capturedName, nameValue);
+  setText(capturedLat, latValue);
+  setText(capturedLon, lonValue);
+  setText(capturedPrivateKey, keyValue);
+  setText(prefillName, nameValue);
+  setText(prefillLat, latValue);
+  setText(prefillLon, lonValue);
+  setText(prefillPrivateKey, keyValue);
+  setText(capturedMeta, formatCapturedTimestamp(info?.capturedAt || ""));
+}
+
+function saveCapturedDeviceInfo(boardId, info) {
+  try {
+    window.localStorage.setItem(browserCaptureKey(boardId), JSON.stringify(info));
+  } catch (error) {
+    appendLog(`Browser storage warning: ${error.message}`);
+  }
+}
+
+function loadCapturedDeviceInfo(boardId) {
+  try {
+    const raw = window.localStorage.getItem(browserCaptureKey(boardId));
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (error) {
+    appendLog(`Browser storage warning: ${error.message}`);
+    return null;
+  }
+}
+
+function applyCapturedDeviceInfoToForm(info) {
+  if (!info) return;
+  repeaterNameInput.value = info.name || "";
+  privateKeyInput.value = info.privateKey || "";
+  deviceLatInput.value = info.lat || "";
+  deviceLonInput.value = info.lon || "";
+}
+
 function setBoardDetails(board) {
   currentBoard = board;
   if (!board) return;
@@ -128,8 +210,16 @@ function setBoardDetails(board) {
   flashPackage.textContent = humanFlashPackage(board);
   hardwareCheck.textContent = board.hardwareStatus;
   artifactFullName.textContent = board.artifacts.full;
-  artifactUpdateName.textContent = board.artifacts.update;
+  artifactUpdateName.textContent = `${board.artifacts.full} (safe update)`;
   capManifest.textContent = board.manifestPath ? "Board manifest" : "Catalog fallback";
+  capturedDeviceInfo = loadCapturedDeviceInfo(board.id);
+  renderCapturedDeviceInfo(capturedDeviceInfo);
+  if (capturedDeviceInfo) {
+    applyCapturedDeviceInfoToForm(capturedDeviceInfo);
+    setPanelState(deviceReadState, "Loaded from browser", "panel__status--success");
+  } else {
+    setPanelState(deviceReadState, "Not read", "panel__status--idle");
+  }
 
   const flashReady = Boolean(board.artifactBase && board.chipFamily);
   flashButton.disabled = !flashReady || flashingNow;
@@ -382,6 +472,8 @@ function buildConfigurationPlan({ validatePrivateKey = true } = {}) {
   const formData = new FormData(settingsForm);
   const repeaterName = String(repeaterNameInput?.value || "").trim();
   const privateKey = String(privateKeyInput?.value || "").trim();
+  const latitude = String(deviceLatInput?.value || "").trim();
+  const longitude = String(deviceLonInput?.value || "").trim();
   const invalidNameChars = repeaterName.match(/[[\]\\:,?*]/g);
 
   if (repeaterName.length > 31) {
@@ -395,6 +487,18 @@ function buildConfigurationPlan({ validatePrivateKey = true } = {}) {
   if (validatePrivateKey && privateKey && !/^[0-9a-fA-F]{128}$/.test(privateKey)) {
     throw new Error("Private key must be exactly 128 hex characters");
   }
+  if (latitude) {
+    const parsedLat = Number.parseFloat(latitude);
+    if (!Number.isFinite(parsedLat) || parsedLat < -90 || parsedLat > 90) {
+      throw new Error("Latitude must be a number between -90 and 90");
+    }
+  }
+  if (longitude) {
+    const parsedLon = Number.parseFloat(longitude);
+    if (!Number.isFinite(parsedLon) || parsedLon < -180 || parsedLon > 180) {
+      throw new Error("Longitude must be a number between -180 and 180");
+    }
+  }
 
   const identityCommands = [];
   if (repeaterName) {
@@ -402,6 +506,12 @@ function buildConfigurationPlan({ validatePrivateKey = true } = {}) {
   }
   if (privateKey) {
     identityCommands.push(`set prv.key ${privateKey}`);
+  }
+  if (latitude) {
+    identityCommands.push(`set lat ${latitude}`);
+  }
+  if (longitude) {
+    identityCommands.push(`set lon ${longitude}`);
   }
 
   return {
@@ -797,6 +907,55 @@ async function readSettingValue(key, timeoutMs = 6000) {
   };
 }
 
+async function readOptionalSettingValue(key, timeoutMs = 6000) {
+  try {
+    return await readSettingValue(key, timeoutMs);
+  } catch (error) {
+    appendLog(`Readback warning for ${key}: ${error.message}`);
+    return { line: "", value: "" };
+  }
+}
+
+async function captureCurrentDeviceInfo() {
+  const openedHere = !serialConnected;
+
+  try {
+    if (openedHere) {
+      appendLog("Opening serial to read the current device info.");
+      await connectSerial();
+    }
+
+    await ensureSerialCliReady();
+    setPanelState(deviceReadState, "Reading", "panel__status--busy");
+
+    const nameResult = await readOptionalSettingValue("name");
+    const latResult = await readOptionalSettingValue("lat");
+    const lonResult = await readOptionalSettingValue("lon");
+    const privateKeyResult = await readOptionalSettingValue("prv.key");
+
+    const info = {
+      name: nameResult.value,
+      lat: latResult.value,
+      lon: lonResult.value,
+      privateKey: privateKeyResult.value,
+      capturedAt: new Date().toISOString()
+    };
+
+    capturedDeviceInfo = info;
+    saveCapturedDeviceInfo(currentBoard.id, info);
+    renderCapturedDeviceInfo(info);
+    applyCapturedDeviceInfoToForm(info);
+    buildCommandPreview();
+    setPanelState(deviceReadState, "Captured", "panel__status--success");
+    appendLog("Captured current device info and stored it in this browser for this board.");
+  } finally {
+    if (openedHere) {
+      await disconnectSerialSession({ silent: true });
+      appendLog("Serial session closed after reading current device info.");
+    }
+  }
+}
+
 async function loadEspTool() {
   if (!esptoolModulePromise) {
     esptoolModulePromise = import("/assets/vendor/esptool-js-bundle.js?v=20260308-1532");
@@ -839,6 +998,91 @@ async function fetchBinary(path) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+async function fetchJson(path) {
+  const response = await fetch(resolveArtifactUrl(path), { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${path} (${response.status})`);
+  }
+  return response.json();
+}
+
+async function loadBoardManifest(board) {
+  if (!board?.manifestPath) return null;
+  if (boardManifestCache.has(board.id)) {
+    return boardManifestCache.get(board.id);
+  }
+
+  const manifest = await fetchJson(board.manifestPath);
+  boardManifestCache.set(board.id, manifest);
+  return manifest;
+}
+
+function parseFlashOffset(offset) {
+  if (typeof offset === "number") return offset;
+  if (typeof offset !== "string") {
+    throw new Error("Invalid flash offset in manifest");
+  }
+
+  const trimmed = offset.trim().toLowerCase();
+  return trimmed.startsWith("0x") ? Number.parseInt(trimmed, 16) : Number.parseInt(trimmed, 10);
+}
+
+async function buildFlashArtifacts(board, kind) {
+  const manifest = await loadBoardManifest(board);
+
+  if (kind === "update") {
+    // Update mode: write ONLY the app firmware at 0x10000.
+    // Do NOT write bootloader, partitions, or boot_app0.
+    // This preserves the NVS partition (0x9000-0xDFFF) which holds
+    // node name, coordinates, and other saved settings.
+    const imageName = board.artifacts.update || board.artifacts.full;
+    const imageOffset = parseFlashOffset(manifest?.flash_offsets?.update || "0x10000");
+    const imagePath = `${board.artifactBase}${imageName}`;
+    const imageData = await fetchBinary(imagePath);
+    appendLog(`Fetched ${imageName} (${imageData.byteLength} bytes) — app only at 0x${imageOffset.toString(16)}`);
+    return [
+      {
+        imageName,
+        label: "firmware",
+        address: imageOffset,
+        data: await blobToBinaryString(new Blob([imageData]))
+      }
+    ];
+  }
+
+  // Full flash: use full_segments from manifest, or fall back to merged image
+  const segmentList = manifest?.full_segments;
+
+  if (Array.isArray(segmentList) && segmentList.length > 0) {
+    const artifacts = [];
+    for (const segment of segmentList) {
+      const imagePath = `${board.artifactBase}${segment.path}`;
+      const imageData = await fetchBinary(imagePath);
+      appendLog(`Fetched ${segment.path} (${imageData.byteLength} bytes) for ${segment.name}.`);
+      artifacts.push({
+        imageName: segment.path,
+        label: segment.name || segment.path,
+        address: parseFlashOffset(segment.offset),
+        data: await blobToBinaryString(new Blob([imageData]))
+      });
+    }
+    return artifacts;
+  }
+
+  const imageName = board.artifacts.full;
+  const imagePath = `${board.artifactBase}${imageName}`;
+  const imageData = await fetchBinary(imagePath);
+  appendLog(`Fetched ${imageName} (${imageData.byteLength} bytes)`);
+  return [
+    {
+      imageName,
+      label: kind,
+      address: 0x0,
+      data: await blobToBinaryString(new Blob([imageData]))
+    }
+  ];
+}
+
 async function blobToBinaryString(blob) {
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let result = "";
@@ -867,9 +1111,7 @@ async function flashFirmware(kind) {
   flashingNow = true;
   let port = null;
   let transport = null;
-  const imageName = kind === "full" ? currentBoard.artifacts.full : currentBoard.artifacts.update;
-  const imagePath = `${currentBoard.artifactBase}${imageName}`;
-  const address = kind === "full" ? 0x0 : 0x10000;
+  let flashArtifacts = [];
 
   try {
     if (serialConnected) {
@@ -897,9 +1139,12 @@ async function flashFirmware(kind) {
     setFlashProgress(16, "Connecting to bootloader");
     appendLog("Connecting to bootloader.");
     transport = new Transport(port, true);
-
-    const imageData = await fetchBinary(imagePath);
-    appendLog(`Fetched ${imageName} (${imageData.byteLength} bytes)`);
+    flashArtifacts = await buildFlashArtifacts(currentBoard, kind);
+    appendLog(
+      kind === "update"
+        ? `Prepared ${flashArtifacts.length} segment${flashArtifacts.length === 1 ? "" : "s"} for update flash (NVS preserved).`
+        : `Prepared ${flashArtifacts.length} segment${flashArtifacts.length === 1 ? "" : "s"} for full flash.`
+    );
 
     const flashOptions = {
       debugLogging: false,
@@ -912,12 +1157,10 @@ async function flashFirmware(kind) {
       flashFreq: "keep",
       eraseAll: kind === "full",
       compress: true,
-      fileArray: [
-        {
-          data: await blobToBinaryString(new Blob([imageData])),
-          address
-        }
-      ],
+      fileArray: flashArtifacts.map((artifact) => ({
+        data: artifact.data,
+        address: artifact.address
+      })),
       reportProgress(_fileIndex, written, total) {
         const lowerBound = kind === "full" ? 24 : 24;
         const percent = total > 0 ? Math.max(lowerBound, Math.min(98, Math.round((written / total) * 100))) : lowerBound;
@@ -935,6 +1178,8 @@ async function flashFirmware(kind) {
     await loader.flashId();
     if (kind === "full") {
       appendLog("Full image selected. Flash erase is enabled.");
+    } else {
+      appendLog("Update selected. Writing app firmware only at 0x10000 — NVS and saved settings are preserved.");
     }
     await loader.writeFlash(flashOptions);
     await delay(100);
@@ -951,7 +1196,7 @@ async function flashFirmware(kind) {
     setPanelState(flashState, "Flashed", "panel__status--success");
     setFlashProgress(100, "Flash complete");
     setText(stateFlash, kind === "full" ? "Full image flashed" : "Update image flashed");
-    setText(summaryFirmware, imageName);
+    setText(summaryFirmware, flashArtifacts.map((artifact) => artifact.imageName).join(", "));
     setText(summaryConfig, "Not sent");
     setText(stateMqtt, "Awaiting apply");
     setText(summaryMqtt, "Awaiting verify");
@@ -1030,8 +1275,33 @@ radioPreset.addEventListener("change", () => {
   });
 });
 
+captureDeviceButton.addEventListener("click", async () => {
+  if (!currentBoard) {
+    appendLog("Choose a board before reading device info.");
+    return;
+  }
+
+  appendLog("Read Current Device Info clicked.");
+  captureDeviceButton.disabled = true;
+  try {
+    await captureCurrentDeviceInfo();
+  } catch (error) {
+    setPanelState(deviceReadState, "Read failed", "panel__status--error");
+    appendLog(`Read current device info failed: ${error.message}`);
+  } finally {
+    captureDeviceButton.disabled = false;
+  }
+});
+
 flashButton.addEventListener("click", async () => {
   appendLog("Flash Full Firmware clicked.");
+  const confirmed = window.confirm(
+    "Flash Full Firmware will erase the device flash before writing the image.\n\nThis can wipe saved settings and should only be used for first install or recovery.\n\nContinue?"
+  );
+  if (!confirmed) {
+    appendLog("Full firmware flash canceled by user.");
+    return;
+  }
   try {
     await flashFirmware("full");
   } catch (error) {
@@ -1111,6 +1381,20 @@ async function applySettings() {
         const { value } = await readSettingValue("name");
         if (value !== expectedName) {
           throw new Error(`Repeater name verification failed (device reports: ${value || "blank"})`);
+        }
+      }
+      if (plan.identity.some((command) => command.startsWith("set lat "))) {
+        const expectedLat = String(deviceLatInput?.value || "").trim();
+        const { value } = await readSettingValue("lat");
+        if (value !== expectedLat) {
+          throw new Error(`Latitude verification failed (device reports: ${value || "blank"})`);
+        }
+      }
+      if (plan.identity.some((command) => command.startsWith("set lon "))) {
+        const expectedLon = String(deviceLonInput?.value || "").trim();
+        const { value } = await readSettingValue("lon");
+        if (value !== expectedLon) {
+          throw new Error(`Longitude verification failed (device reports: ${value || "blank"})`);
         }
       }
       setCommandState(2, "is-done", "Written");

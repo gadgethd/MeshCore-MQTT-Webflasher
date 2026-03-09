@@ -532,6 +532,19 @@ button:focus,
   background: rgba(7, 17, 29, 0.54);
 }
 
+.captured-values {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(7, 17, 29, 0.54);
+}
+
+.device-snapshot-grid strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .settings-grid--radio {
   margin-bottom: 14px;
 }
