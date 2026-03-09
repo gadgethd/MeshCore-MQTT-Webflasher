@@ -3,7 +3,7 @@
   "build_env": "Heltec_v3_repeater_mqtt_dynamic",
   "firmware_name": "meshcore-mqtt",
   "firmware_version": "v1.14.0",
-  "built_at_utc": "2026-03-08T23:41:12Z",
+  "built_at_utc": "2026-03-09T20:18:34Z",
   "artifacts": {
     "update": "meshcore-mqtt-v1.14.0-Heltec_v3_repeater-update.bin",
     "full": "meshcore-mqtt-v1.14.0-Heltec_v3_repeater-full.bin",

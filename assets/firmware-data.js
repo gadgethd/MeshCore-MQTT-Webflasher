@@ -1,5 +1,5 @@
 window.FIRMWARE_DATA = {
-  "generatedAt": "2026-03-08T23:41:12Z",
+  "generatedAt": "2026-03-09T20:18:34Z",
   "boards": [
     {
       "id": "Heltec_v3_repeater",

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MeshCore MQTT Web Flasher</title>
-    <link rel="stylesheet" href="assets/styles.css?v=20260309-0120">
+    <link rel="stylesheet" href="assets/styles.css?v=20260309-0126">
   </head>
   <body>
     <div class="app-shell">
@@ -206,7 +206,8 @@
               </div>
               <div class="note-list">
                 <p>Choose the radio profile first, then flash the firmware. The selected radio command is applied afterward in the Configure Device step, followed by a reboot so the radio changes take effect.</p>
-                <p>Use the update image for normal upgrades. It writes the merged firmware image at <code>0x00000</code> without a full erase so saved device settings stay intact. Use the full image only for first installs or recovery; the browser will warn that it erases flash and may wipe saved settings.</p>
+                <p><code>Flash Update Only</code> now mirrors the official MeshCore browser flasher path: one update image written at <code>0x10000</code> without a full chip erase.</p>
+                <p><code>Flash Full Firmware</code> mirrors the official destructive path: one full image written at <code>0x00000</code> with a full chip erase first, so treat it as recovery / first-install only.</p>
                 <p>The preset populates the MeshCore CLI command, but you can edit frequency, bandwidth, SF, and CR manually.</p>
                 <p>The browser handles flashing over Web Serial locally. Firmware binaries are served from this host only.</p>
               </div>
@@ -328,7 +329,7 @@
                 </label>
               </form>
               <div class="settings-actions">
-                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the captured or edited repeater name, coordinates, optional private key, WiFi, and MQTT settings without leaving Step 4.</p>
+                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the captured or edited repeater name, coordinates, private key, WiFi, and MQTT settings in one pass. Step 4 values are saved locally in this browser per board, and if Step 1 captured values while these fields are blank, the captured values are used automatically.</p>
                 <div class="action-row settings-actions__row">
                   <button class="button button--primary settings-actions__serial" id="serial-button" type="button">Connect Serial</button>
                   <button class="button button--secondary settings-actions__apply" id="settings-apply-button" type="button">Apply Settings</button>
@@ -427,7 +428,7 @@
       </main>
     </div>
 
-    <script src="assets/firmware-data.js?v=20260309-0120"></script>
-    <script src="assets/app.js?v=20260309-0120"></script>
+    <script src="assets/firmware-data.js?v=20260309-2052"></script>
+    <script src="assets/app.js?v=20260309-2052"></script>
   </body>
 </html>
