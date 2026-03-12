@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MeshCore MQTT Web Flasher</title>
-    <link rel="stylesheet" href="assets/styles.css?v=20260309-0126">
+    <link rel="stylesheet" href="assets/styles.css?v=20260312-0255">
   </head>
   <body>
     <div class="app-shell">
@@ -51,8 +51,10 @@
                 </div>
                 <span class="panel__status panel__status--idle" id="device-read-state">Not read</span>
               </div>
+              <div class="step-panel__body">
               <div class="action-row">
                 <button class="button button--primary" id="capture-device-button" type="button">Read Current Device Info</button>
+                <button class="button button--ghost" id="download-backup-button" type="button">Download Backup (.txt)</button>
               </div>
               <div class="state-grid device-snapshot-grid">
                 <div class="state-chip">
@@ -71,10 +73,24 @@
                   <span class="state-chip__label">Current Private Key</span>
                   <strong id="captured-private-key">Not captured</strong>
                 </div>
+                <div class="state-chip">
+                  <span class="state-chip__label">Current Guest Password</span>
+                  <strong id="captured-guest-password">Not captured</strong>
+                </div>
+                <div class="state-chip">
+                  <span class="state-chip__label">Current WiFi SSID</span>
+                  <strong id="captured-wifi-ssid">Not captured</strong>
+                </div>
+                <div class="state-chip">
+                  <span class="state-chip__label">Current MQTT URI</span>
+                  <strong id="captured-mqtt-uri">Not captured</strong>
+                </div>
               </div>
               <div class="note-list">
-                <p>Read the current device values before flashing. The browser stores the captured name, coordinates, and private key locally for this board and pre-fills Step 4.</p>
+                <p>Read the current device values before flashing. The browser stores the captured identity, guest password, radio, WiFi, and MQTT values locally for this board and pre-fills Step 4 and Step 5 where possible.</p>
+                <p>The backup download is a plain-text snapshot of the captured device values plus the Step 4 and Step 5 values saved in this browser for the current board.</p>
                 <p id="captured-meta">Nothing captured in this browser for this board yet.</p>
+              </div>
               </div>
             </section>
 
@@ -86,6 +102,7 @@
                 </div>
                 <span class="panel__status panel__status--ready">Ready</span>
               </div>
+              <div class="step-panel__body">
               <div class="board-grid">
                 <div class="field field--span-2">
                   <span class="field__label">Supported board</span>
@@ -131,6 +148,7 @@
                   <strong id="hardware-check">Loading</strong>
                 </div>
               </div>
+              </div>
             </section>
 
             <section class="panel panel--wide step-panel" id="flash-firmware">
@@ -141,6 +159,7 @@
                 </div>
                 <span class="panel__status panel__status--idle" id="flash-state">Idle</span>
               </div>
+              <div class="step-panel__body">
               <div class="radio-config">
                 <div class="panel__header panel__header--compact">
                   <div>
@@ -217,21 +236,23 @@
               </div>
               <div class="note-list">
                 <p>Choose the radio profile first, then flash the firmware. The selected radio command is applied afterward in the Configure Device step, followed by a reboot so the radio changes take effect.</p>
-                <p><code>Flash Update Only</code> now mirrors the official MeshCore browser flasher path: one update image written at <code>0x10000</code> without a full chip erase.</p>
+                <p><code>Flash Update Only</code> now mirrors the official MeshCore browser flasher path: bootloader, partitions, <code>boot_app0</code>, and the app image are written without a full chip erase.</p>
                 <p><code>Flash Full Firmware</code> mirrors the official destructive path: one full image written at <code>0x00000</code> with a full chip erase first, so treat it as recovery / first-install only.</p>
                 <p>The preset populates the MeshCore CLI command, but you can edit frequency, bandwidth, SF, and CR manually.</p>
                 <p>The browser handles flashing over Web Serial locally. Firmware binaries are served from this host only.</p>
               </div>
+              </div>
             </section>
 
-            <section class="panel panel--wide step-panel" id="settings">
+            <section class="panel panel--wide step-panel" id="device-settings">
               <div class="panel__header">
                 <div>
                   <p class="panel__eyebrow">Step 4</p>
-                  <h2>Enter Device, WiFi, and MQTT Settings</h2>
+                  <h2>Enter Device and WiFi Settings</h2>
                 </div>
-                <span class="panel__status panel__status--idle" id="settings-state">Pending</span>
+                <span class="panel__status panel__status--idle">Pending</span>
               </div>
+              <div class="step-panel__body">
               <div class="captured-values">
                 <div class="panel__header panel__header--compact">
                   <div>
@@ -283,6 +304,30 @@
                   <span class="field__hint">Optional. MeshCore expects a 128-character hex private key and applies it after reboot.</span>
                 </label>
                 <label class="field">
+                  <span class="field__label">Guest Password</span>
+                  <input
+                    id="guest-password"
+                    type="password"
+                    name="guestPassword"
+                    maxlength="15"
+                    placeholder="Leave blank to keep the current guest password"
+                    autocomplete="off"
+                  >
+                  <span class="field__hint">Optional. MeshCore stores up to 15 characters.</span>
+                </label>
+                <label class="field">
+                  <span class="field__label">Admin Password</span>
+                  <input
+                    id="admin-password"
+                    type="password"
+                    name="adminPassword"
+                    maxlength="15"
+                    placeholder="Leave blank to keep the current admin password"
+                    autocomplete="off"
+                  >
+                  <span class="field__hint">Optional. MeshCore stores up to 15 characters.</span>
+                </label>
+                <label class="field">
                   <span class="field__label">Latitude</span>
                   <input
                     id="device-lat"
@@ -310,54 +355,81 @@
                   <span class="field__label">WiFi Password</span>
                   <input type="password" name="wifiPassword" value="password123">
                 </label>
-                <label class="field field--span-2">
-                  <span class="field__label">MQTT URI</span>
-                  <input type="text" name="mqttUri" value="wss://mqtt.ukmesh.com:443/">
-                </label>
-                <label class="field">
-                  <span class="field__label">MQTT Username</span>
-                  <input type="text" name="mqttUsername" value="observer">
-                </label>
-                <label class="field">
-                  <span class="field__label">MQTT Password</span>
-                  <input type="password" name="mqttPassword" value="observer-password">
-                </label>
-                <label class="field">
-                  <span class="field__label">Topic Root</span>
-                  <input type="text" name="topicRoot" value="meshcore">
-                </label>
-                <label class="field">
-                  <span class="field__label">IATA</span>
-                  <input type="text" name="iata" value="LHR">
-                </label>
-                <label class="field">
-                  <span class="field__label">Model Label</span>
-                  <input type="text" name="model" value="Heltec V3">
-                </label>
-                <label class="field">
-                  <span class="field__label">Client Version</span>
-                  <input type="text" name="clientVersion" value="custom-mqtt-observer/1.0.0">
-                </label>
               </form>
+              </div>
+            </section>
+
+            <section class="panel panel--wide step-panel" id="mqtt-settings">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Step 5</p>
+                  <h2>Enter MQTT Settings</h2>
+                </div>
+                <span class="panel__status panel__status--idle" id="settings-state">Pending</span>
+              </div>
+              <div class="step-panel__body">
+              <div class="captured-values">
+                <div class="settings-grid">
+                  <label class="field field--span-2">
+                    <span class="field__label">MQTT URI</span>
+                    <input type="text" name="mqttUri" value="wss://mqtt.ukmesh.com:443/" form="settings-form">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">MQTT Username</span>
+                    <input type="text" name="mqttUsername" value="observer" form="settings-form">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">MQTT Password</span>
+                    <input type="password" name="mqttPassword" value="observer-password" form="settings-form">
+                  </label>
+                  <label class="field field--span-2">
+                    <span class="field__label">Topic Root</span>
+                    <input type="text" name="topicRoot" value="meshcore" form="settings-form">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">IATA</span>
+                    <input type="text" name="iata" value="LHR" form="settings-form">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Model Label</span>
+                    <input type="text" name="model" value="Heltec V3" form="settings-form">
+                  </label>
+                  <label class="field">
+                    <span class="field__label">Retain Status</span>
+                    <select name="retainStatus" form="settings-form">
+                      <option value="0">Off</option>
+                      <option value="1">On</option>
+                    </select>
+                  </label>
+                  <label class="field field--span-2">
+                    <span class="field__label">Client Version</span>
+                    <input type="text" name="clientVersion" value="custom-mqtt-observer/1.0.0" form="settings-form">
+                  </label>
+                </div>
+              </div>
               <div class="settings-actions">
-                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the captured or edited repeater name, coordinates, private key, WiFi, and MQTT settings in one pass. Step 4 values are saved locally in this browser per board, and if Step 1 captured values while these fields are blank, the captured values are used automatically.</p>
+                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the captured or edited device, WiFi, and MQTT settings. MQTT writes now use the single-broker keys such as <code>mqtt.uri</code>, <code>mqtt.username</code>, <code>mqtt.password</code>, and <code>mqtt.topic.root</code>.</p>
                 <div class="action-row settings-actions__row">
                   <button class="button button--primary settings-actions__serial" id="serial-button" type="button">Connect Serial</button>
-                  <button class="button button--secondary settings-actions__apply" id="settings-apply-button" type="button">Apply Settings</button>
+                  <button class="button button--secondary settings-actions__apply" id="settings-apply-device-wifi-button" type="button">Apply Device + WiFi</button>
+                  <button class="button button--secondary settings-actions__apply" id="settings-apply-mqtt-button" type="button">Apply MQTT</button>
+                  <button class="button button--ghost" id="settings-apply-button" type="button">Apply All Settings</button>
                   <button class="button button--ghost" id="reconnect-button" type="button">Reconnect MQTT</button>
                   <button class="button button--ghost" id="verify-button" type="button">Run Verification</button>
                 </div>
+              </div>
               </div>
             </section>
 
             <section class="panel panel--wide step-panel" id="configure-device">
               <div class="panel__header">
                 <div>
-                  <p class="panel__eyebrow">Step 5</p>
+                  <p class="panel__eyebrow">Step 6</p>
                   <h2>Configuration Progress</h2>
                 </div>
                 <span class="panel__status panel__status--idle" id="serial-state">Serial disconnected</span>
               </div>
+              <div class="step-panel__body">
               <ol class="command-list" id="command-list">
                 <li class="command-list__item is-pending"><span>Connect USB serial</span><strong>Pending</strong></li>
                 <li class="command-list__item is-pending"><span>Write radio settings</span><strong>Pending</strong></li>
@@ -374,6 +446,7 @@
                   </div>
                 </div>
                 <div class="command-preview__pane" id="command-preview-pane" aria-live="polite"></div>
+              </div>
               </div>
             </section>
           </div>
@@ -439,7 +512,7 @@
       </main>
     </div>
 
-    <script src="assets/firmware-data.js?v=20260309-2102"></script>
-    <script src="assets/app.js?v=20260309-2102"></script>
+    <script src="assets/firmware-data.js?v=20260312-0255"></script>
+    <script src="assets/app.js?v=20260312-0255"></script>
   </body>
 </html>

@@ -192,6 +192,30 @@ select {
   grid-column: 1 / -1;
 }
 
+.step-panel {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.step-panel--active {
+  border-color: var(--line-strong);
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(97, 197, 231, 0.12);
+}
+
+.step-panel .panel__header {
+  cursor: pointer;
+}
+
+.step-panel__body {
+  display: grid;
+  gap: 16px;
+}
+
+.step-panel--collapsed .step-panel__body {
+  display: none;
+}
+
 .panel--compact {
   padding: 16px;
 }
@@ -538,6 +562,40 @@ button:focus,
   border: 1px solid var(--line);
   border-radius: 14px;
   background: rgba(7, 17, 29, 0.54);
+}
+
+.mqtt-broker-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.mqtt-broker-card {
+  margin-bottom: 0;
+}
+
+.mqtt-topic-preview {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(94, 132, 171, 0.22);
+  border-radius: 12px;
+  background: rgba(5, 12, 20, 0.7);
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.mqtt-topic-toggle__control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  color: var(--text);
+}
+
+.mqtt-topic-toggle__control input[type="checkbox"] {
+  inline-size: 16px;
+  block-size: 16px;
 }
 
 .device-snapshot-grid strong {
