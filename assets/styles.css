@@ -174,6 +174,15 @@ select {
   gap: 18px;
 }
 
+.sidebar {
+  position: sticky;
+  top: 18px;
+  align-self: start;
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .workflow__content {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -214,6 +223,29 @@ select {
 
 .step-panel--collapsed .step-panel__body {
   display: none;
+}
+
+.step-panel--collapsed {
+  padding: 12px 16px;
+}
+
+.step-panel--collapsed .panel__header {
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.step-panel--collapsed .panel__eyebrow {
+  margin-bottom: 4px;
+  font-size: 0.72rem;
+}
+
+.step-panel--collapsed h2 {
+  font-size: 1.12rem;
+}
+
+.step-panel--collapsed .panel__status {
+  padding: 6px 10px;
+  font-size: 0.78rem;
 }
 
 .panel--compact {
@@ -287,6 +319,11 @@ select {
 
 .settings-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-form-layout {
+  display: grid;
+  gap: 16px;
 }
 
 .field {
@@ -453,6 +490,20 @@ button:focus,
   margin-bottom: 0;
 }
 
+.settings-actions__row--primary {
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(94, 132, 171, 0.14);
+}
+
+.settings-actions__row--utility {
+  gap: 8px;
+}
+
+.settings-actions__row--utility .button {
+  padding: 9px 13px;
+  font-size: 0.88rem;
+}
+
 .settings-actions__serial {
   min-width: 170px;
 }
@@ -564,6 +615,39 @@ button:focus,
   background: rgba(7, 17, 29, 0.54);
 }
 
+.settings-section-card {
+  padding: 16px;
+  border: 1px solid rgba(94, 132, 171, 0.18);
+  border-radius: 16px;
+  background: rgba(7, 17, 29, 0.46);
+}
+
+.settings-section-card__header {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+
+.settings-section-card__header h3 {
+  margin: 0;
+}
+
+.settings-intro {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid rgba(94, 132, 171, 0.18);
+  border-radius: 14px;
+  background: rgba(8, 18, 31, 0.62);
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.mqtt-control-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
 .mqtt-broker-stack {
   display: grid;
   gap: 16px;
@@ -571,10 +655,22 @@ button:focus,
 
 .mqtt-broker-card {
   margin-bottom: 0;
+  padding: 16px;
+}
+
+.mqtt-broker-card--compact {
+  min-height: 100%;
+}
+
+.mqtt-broker-card--pair {
+  border-color: rgba(123, 162, 201, 0.26);
+  background:
+    linear-gradient(180deg, rgba(9, 21, 35, 0.88), rgba(7, 17, 29, 0.88)),
+    linear-gradient(180deg, rgba(97, 197, 231, 0.03), transparent);
 }
 
 .mqtt-topic-preview {
-  margin: 12px 0 0;
+  margin: 14px 0 0;
   padding: 12px 14px;
   border: 1px solid rgba(94, 132, 171, 0.22);
   border-radius: 12px;
@@ -583,6 +679,41 @@ button:focus,
   font-size: 0.9rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.mqtt-status-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  color: var(--text);
+}
+
+.mqtt-status-toggle input[type="checkbox"] {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+.mqtt-status-section {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid rgba(94, 132, 171, 0.18);
+  border-radius: 14px;
+  background: rgba(4, 10, 18, 0.42);
+}
+
+.mqtt-subsection-title {
+  grid-column: 1 / -1;
+  margin: 0 0 4px;
+  color: var(--cyan);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .mqtt-topic-toggle__control {
@@ -601,6 +732,10 @@ button:focus,
 .device-snapshot-grid strong {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.state-chip--wide {
+  grid-column: 1 / -1;
 }
 
 .settings-grid--radio {
@@ -631,6 +766,11 @@ button:focus,
 
 .note-list p {
   margin: 0;
+}
+
+.note-list p + p {
+  padding-top: 6px;
+  border-top: 1px solid rgba(94, 132, 171, 0.12);
 }
 
 .command-list,
@@ -740,7 +880,16 @@ button:focus,
   }
 
   .sidebar {
+    position: static;
+    top: auto;
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mqtt-control-strip {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -756,7 +905,8 @@ button:focus,
   .sidebar,
   .board-grid,
   .settings-grid,
-  .state-grid {
+  .state-grid,
+  .mqtt-control-strip {
     grid-template-columns: 1fr;
   }
 

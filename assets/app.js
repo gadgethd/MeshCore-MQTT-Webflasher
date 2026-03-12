@@ -59,8 +59,6 @@ const settingsApplyDeviceWifiButton = document.getElementById("settings-apply-de
 const settingsApplyMqttButton = document.getElementById("settings-apply-mqtt-button");
 const settingsApplyButton = document.getElementById("settings-apply-button");
 const configureButton = document.getElementById("configure-button");
-const reconnectButton = document.getElementById("reconnect-button");
-const verifyButton = document.getElementById("verify-button");
 const clearLogButton = document.getElementById("clear-log-button");
 const settingsForm = document.getElementById("settings-form");
 const commandPreviewPane = document.getElementById("command-preview-pane");
@@ -71,8 +69,11 @@ const adminPasswordInput = document.getElementById("admin-password");
 const deviceLatInput = document.getElementById("device-lat");
 const deviceLonInput = document.getElementById("device-lon");
 const additionalBrokerCountInput = document.getElementById("additional-broker-count");
-const mqttBrokerPanels = [2, 3, 4, 5].map((index) => document.getElementById(`mqtt-broker-${index}-panel`));
-const mqttBrokerTopicPreviews = [1, 2, 3, 4, 5].map((index) => document.getElementById(`mqtt-broker-${index}-topic-preview`));
+const mqttLogicalBrokerPanels = [2, 3].map((index) => document.getElementById(`mqtt-logical-broker-${index}-panel`));
+const mqttStatusBrokerSections = [1, 2, 3].map((index) => document.getElementById(`mqtt-status-broker-${index}`));
+const mqttStatusBrokerToggles = [1, 2, 3].map((index) => document.getElementById(`mqtt-status-broker-${index}-enabled`));
+const mqttStatusBrokerToggleRows = [1, 2, 3].map((index) => document.getElementById(`mqtt-status-toggle-row-${index}`));
+const mqttBrokerTopicPreviews = [1, 2, 3, 4, 5, 6].map((index) => document.getElementById(`mqtt-broker-${index}-topic-preview`));
 const capSecure = document.getElementById("cap-secure");
 const capSerial = document.getElementById("cap-serial");
 const capUsb = document.getElementById("cap-usb");
@@ -101,6 +102,7 @@ let preferredSerialPortInfo = null;
 let scheduledSerialDisconnect = null;
 let capturedDeviceInfo = null;
 let savedStep4Settings = null;
+let activeMqttBrokerIds = new Set();
 const boardManifestCache = new Map();
 const stepPanels = Array.from(document.querySelectorAll(".step-panel"));
 const STEP_ORDER = [
@@ -221,7 +223,8 @@ const SENSITIVE_COMMAND_PREFIXES = [
   "password "
 ];
 
-const MQTT_MAX_BROKERS = 5;
+const MQTT_MAX_BROKERS = 6;
+const LOGICAL_MQTT_BROKER_MAX = 3;
 
 function humanFlashPackage(board) {
   if (!board) return "Unavailable";
@@ -274,139 +277,225 @@ function updateBackupExportAvailability() {
 function sanitizeAdditionalBrokerCount(value) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return 0;
-  return Math.max(0, Math.min(MQTT_MAX_BROKERS - 1, parsed));
+  return Math.max(0, Math.min(LOGICAL_MQTT_BROKER_MAX - 1, parsed));
 }
 
 function brokerFieldName(index, suffix) {
   return `mqttBroker${index}${suffix}`;
 }
 
-function brokerTopicRootFieldName(index) {
-  return index === 1 ? "topicRoot" : brokerFieldName(index, "TopicRoot");
+function logicalBrokerMainSlot(logicalIndex) {
+  return ((logicalIndex - 1) * 2) + 1;
 }
 
-function brokerUseDefaultTopicFieldName(index) {
-  return index === 1 ? "useDefaultTopic" : brokerFieldName(index, "UseDefaultTopic");
+function logicalBrokerStatusSlot(logicalIndex) {
+  return logicalBrokerMainSlot(logicalIndex) + 1;
 }
 
-function brokerUriFieldName(index) {
-  return index === 1 ? "mqttUri" : brokerFieldName(index, "Uri");
+function slotLogicalIndex(slotIndex) {
+  return Math.ceil(slotIndex / 2);
 }
 
-function brokerUseTlsFieldName(index) {
-  return index === 1 ? "useTls" : brokerFieldName(index, "UseTls");
+function isStatusSlot(slotIndex) {
+  return slotIndex % 2 === 0;
 }
 
-function brokerUseWebsocketFieldName(index) {
-  return index === 1 ? "useWebsocket" : brokerFieldName(index, "UseWebsocket");
+function activeLogicalBrokerCount(formData) {
+  return sanitizeAdditionalBrokerCount(formData.get("additionalBrokerCount")) + 1;
 }
 
-function defaultBrokerTransportFlags(index) {
-  return index === 1
-    ? { useTls: true, useWebsocket: true }
-    : { useTls: true, useWebsocket: false };
+function statusBrokerToggleFieldId(logicalIndex) {
+  return `mqtt-status-broker-${logicalIndex}-enabled`;
 }
 
-function getBrokerFieldInput(index, fieldName) {
-  return settingsForm?.elements?.namedItem(index === 1 ? fieldName : brokerFieldName(index, fieldName));
-}
-
-function getBrokerTopicRootInput(index) {
-  return settingsForm?.elements?.namedItem(brokerTopicRootFieldName(index));
-}
-
-function getBrokerUriInput(index) {
-  return settingsForm?.elements?.namedItem(brokerUriFieldName(index));
-}
-
-function getBrokerTransportInputs(index) {
-  return {
-    tlsInput: settingsForm?.elements?.namedItem(brokerUseTlsFieldName(index)),
-    websocketInput: settingsForm?.elements?.namedItem(brokerUseWebsocketFieldName(index))
-  };
-}
-
-function parseBrokerTransportFlags(uri, index) {
-  const trimmed = String(uri || "").trim().toLowerCase();
-  if (trimmed.startsWith("wss://")) return { useTls: true, useWebsocket: true };
-  if (trimmed.startsWith("ws://")) return { useTls: false, useWebsocket: true };
-  if (trimmed.startsWith("mqtts://")) return { useTls: true, useWebsocket: false };
-  if (trimmed.startsWith("mqtt://")) return { useTls: false, useWebsocket: false };
-  return defaultBrokerTransportFlags(index);
-}
-
-function transportSchemeForFlags(useTls, useWebsocket) {
-  if (useWebsocket) {
-    return useTls ? "wss" : "ws";
-  }
-  return useTls ? "mqtts" : "mqtt";
-}
-
-function applyTransportFlagsToUri(uri, useTls, useWebsocket) {
-  const trimmed = String(uri || "").trim();
-  if (!trimmed) return "";
-  const scheme = transportSchemeForFlags(useTls, useWebsocket);
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) {
-    return trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, `${scheme}://`);
-  }
-  return `${scheme}://${trimmed.replace(/^\/+/, "")}`;
-}
-
-function brokerUsesDefaultTopic(formData, index) {
-  const rawValue = formData.get(brokerUseDefaultTopicFieldName(index));
+function isStatusBrokerEnabled(formData, logicalIndex) {
+  const rawValue = formData.get(statusBrokerToggleFieldId(logicalIndex));
   return rawValue === "on" || rawValue === "1" || rawValue === "true";
 }
 
-function readBrokerSettings(formData, index) {
-  if (index !== 1) {
-    return {
-      uri: "",
-      username: "",
-      password: "",
-      topicRoot: "",
-      iata: "",
-      model: "",
-      retainStatus: "0",
-      clientVersion: ""
-    };
-  }
+function brokerDefaultTopicToggleId(index) {
+  return `mqtt-broker-${index}-use-default-topic`;
+}
 
+function logicalBrokerRetainStatus(formData, logicalIndex) {
+  const mainSlot = logicalBrokerMainSlot(logicalIndex);
+  return String(formData.get(brokerFormFieldName(mainSlot, "retainStatus")) || "0").trim();
+}
+
+function canEnableCustomBroker(formData, logicalIndex) {
+  return logicalBrokerRetainStatus(formData, logicalIndex) !== "1";
+}
+
+function brokerFieldBaseName(index) {
+  return index === 1 ? "" : `mqttBroker${index}`;
+}
+
+function brokerFormFieldName(index, key) {
+  if (index === 1) {
+    const map = {
+      uri: "mqttUri",
+      username: "mqttUsername",
+      password: "mqttPassword",
+      topicRoot: "topicRoot",
+      iata: "iata",
+      retainStatus: "retainStatus"
+    };
+    return map[key];
+  }
+  const base = brokerFieldBaseName(index);
+  const map = {
+    uri: `${base}Uri`,
+    username: `${base}Username`,
+    password: `${base}Password`,
+    topicRoot: `${base}TopicRoot`,
+    iata: `${base}Iata`,
+    retainStatus: `${base}RetainStatus`
+  };
+  return map[key];
+}
+
+function getBrokerFieldInput(index, key) {
+  return settingsForm?.elements?.namedItem(brokerFormFieldName(index, key));
+}
+
+function getBrokerUriInput(index) {
+  return getBrokerFieldInput(index, "uri");
+}
+
+function getBrokerTopicRootInput(index) {
+  return getBrokerFieldInput(index, "topicRoot");
+}
+
+function getBrokerDefaultTopicToggle(index) {
+  return document.getElementById(brokerDefaultTopicToggleId(index));
+}
+
+function normalizeBrokerRecord(index, broker = {}) {
   return {
-    uri: String(formData.get("mqttUri") || "").trim(),
-    username: String(formData.get("mqttUsername") || "").trim(),
-    password: String(formData.get("mqttPassword") || ""),
-    topicRoot: String(formData.get("topicRoot") || "").trim(),
-    iata: String(formData.get("iata") || "").trim(),
-    model: String(formData.get("model") || "").trim(),
-    retainStatus: String(formData.get("retainStatus") || "0"),
-    clientVersion: String(formData.get("clientVersion") || "").trim()
+    index,
+    enabled: Boolean(broker.enabled ?? index === 1),
+    uri: String(broker.uri || "").trim(),
+    username: String(broker.username || "").trim(),
+    password: String(broker.password || ""),
+    topicRoot: String(broker.topicRoot || "").trim(),
+    iata: String(broker.iata || "").trim(),
+    retainStatus: String(broker.retainStatus ?? "0")
   };
 }
 
+function readBrokerSettings(formData, index) {
+  const logicalIndex = slotLogicalIndex(index);
+  const logicalBrokerVisible = logicalIndex <= activeLogicalBrokerCount(formData);
+  const enabled = isStatusSlot(index)
+    ? logicalBrokerVisible && canEnableCustomBroker(formData, logicalIndex) && isStatusBrokerEnabled(formData, logicalIndex)
+    : logicalBrokerVisible;
+  const topicRoot = getBrokerDefaultTopicToggle(index)?.checked
+    ? "meshcore"
+    : formData.get(brokerFormFieldName(index, "topicRoot"));
+  return normalizeBrokerRecord(index, {
+    enabled,
+    uri: formData.get(brokerFormFieldName(index, "uri")),
+    username: formData.get(brokerFormFieldName(index, "username")),
+    password: formData.get(brokerFormFieldName(index, "password")),
+    topicRoot,
+    iata: formData.get(brokerFormFieldName(index, "iata")),
+    retainStatus: formData.get(brokerFormFieldName(index, "retainStatus"))
+  });
+}
+
 function readAdditionalBrokerSettings(formData) {
-  return [];
+  const brokers = [];
+  for (let slot = 2; slot <= MQTT_MAX_BROKERS; slot += 1) {
+    brokers.push(readBrokerSettings(formData, slot));
+  }
+  return brokers;
 }
 
 function highestConfiguredAdditionalBrokerIndex(source) {
+  if (!source) return 1;
+  if (typeof source.additionalBrokerCount !== "undefined") {
+    return Math.min(LOGICAL_MQTT_BROKER_MAX, sanitizeAdditionalBrokerCount(source.additionalBrokerCount) + 1);
+  }
+  if (Array.isArray(source.brokers)) {
+    const highest = source.brokers.reduce((max, broker, offset) => {
+      const index = broker?.index || offset + 1;
+      if (isStatusSlot(index)) {
+        return max;
+      }
+      if (broker?.enabled || broker?.uri || broker?.topicRoot || broker?.iata || broker?.username || broker?.password) {
+        return Math.max(max, slotLogicalIndex(index));
+      }
+      return max;
+    }, 1);
+    return highest;
+  }
   return 1;
 }
 
+function setHiddenState(element, hidden) {
+  if (!element) return;
+  element.hidden = hidden;
+  element.style.display = hidden ? "none" : "";
+}
+
 function updateAdditionalBrokerVisibility() {
-  return;
+  const count = sanitizeAdditionalBrokerCount(additionalBrokerCountInput?.value || 0);
+  const formData = new FormData(settingsForm);
+  mqttLogicalBrokerPanels.forEach((panel, offset) => {
+    setHiddenState(panel, offset >= count);
+  });
+  mqttStatusBrokerSections.forEach((section, offset) => {
+    const logicalIndex = offset + 1;
+    const logicalVisible = logicalIndex <= count + 1;
+    const customAllowed = logicalVisible && canEnableCustomBroker(formData, logicalIndex);
+    const toggle = mqttStatusBrokerToggles[offset];
+    const row = mqttStatusBrokerToggleRows[offset];
+
+    setHiddenState(row, !customAllowed);
+    if (toggle) {
+      if (!customAllowed) {
+        toggle.checked = false;
+      }
+      toggle.disabled = !customAllowed;
+    }
+    const customEnabled = Boolean(toggle?.checked);
+    setHiddenState(section, !(customAllowed && customEnabled));
+  });
 }
 
 function buildBrokerStatusTopicPreview(index) {
-  if (index !== 1) return "";
-  const broker = readBrokerSettings(new FormData(settingsForm), 1);
-  const topicRoot = broker.topicRoot || "meshcore";
-  const iata = broker.iata || "{IATA}";
-  return `Status topic: ${topicRoot}/${iata}/{PUBLIC_KEY}/status`;
+  const broker = readBrokerSettings(new FormData(settingsForm), index);
+  if (index > 1 && !broker.enabled) {
+    return "";
+  }
+  const topicRoot = broker.topicRoot || "";
+  if (!topicRoot) {
+    return "";
+  }
+  if (getBrokerDefaultTopicToggle(index)?.checked) {
+    const iata = broker.iata || "<IATA>";
+    const packetsTopic = `${topicRoot}/${iata}/<PUBLIC_KEY>/packets`;
+    if (String(broker.retainStatus || "0") === "1") {
+      return `Default topics: ${topicRoot}/${iata}/<PUBLIC_KEY>/status and ${packetsTopic}`;
+    }
+    return `Default topic: ${packetsTopic}`;
+  }
+  return `Custom topic root: ${topicRoot}`;
 }
 
 function updateBrokerTopicPreviews() {
   mqttBrokerTopicPreviews.forEach((preview, offset) => {
     if (!preview) return;
-    preview.textContent = offset === 0 ? buildBrokerStatusTopicPreview(1) : "";
+    const brokerIndex = offset + 1;
+    const logicalIndex = slotLogicalIndex(brokerIndex);
+    if (isStatusSlot(brokerIndex) && mqttStatusBrokerSections[logicalIndex - 1]?.hidden) {
+      preview.textContent = "";
+      setHiddenState(preview, true);
+      return;
+    }
+    const text = buildBrokerStatusTopicPreview(brokerIndex);
+    preview.textContent = text;
+    setHiddenState(preview, !text);
   });
 }
 
@@ -427,11 +516,44 @@ function syncAllBrokerUrisFromTransport() {
 }
 
 function syncBrokerTopicMode(index) {
-  return;
+  const topicRootInput = getBrokerTopicRootInput(index);
+  const toggle = getBrokerDefaultTopicToggle(index);
+  if (!topicRootInput || !toggle) return;
+
+  if (toggle.checked) {
+    const currentValue = String(topicRootInput.value || "").trim();
+    if (currentValue && currentValue.toLowerCase() !== "meshcore") {
+      topicRootInput.dataset.customTopicRoot = currentValue;
+    }
+    topicRootInput.value = "meshcore";
+    topicRootInput.disabled = true;
+    return;
+  }
+
+  topicRootInput.disabled = false;
+  if (String(topicRootInput.value || "").trim().toLowerCase() === "meshcore" && topicRootInput.dataset.customTopicRoot) {
+    topicRootInput.value = topicRootInput.dataset.customTopicRoot;
+  }
 }
 
 function syncAllBrokerTopicModes() {
-  return;
+  for (let index = 1; index <= MQTT_MAX_BROKERS; index += 1) {
+    syncBrokerTopicMode(index);
+  }
+}
+
+function syncBrokerDefaultTopicToggleFromValue(index) {
+  const topicRootInput = getBrokerTopicRootInput(index);
+  const toggle = getBrokerDefaultTopicToggle(index);
+  if (!topicRootInput || !toggle) return;
+  toggle.checked = String(topicRootInput.value || "").trim().toLowerCase() === "meshcore";
+  syncBrokerTopicMode(index);
+}
+
+function syncAllBrokerDefaultTopicTogglesFromValues() {
+  for (let index = 1; index <= MQTT_MAX_BROKERS; index += 1) {
+    syncBrokerDefaultTopicToggleFromValue(index);
+  }
 }
 
 function getStepIndex(stepId) {
@@ -440,7 +562,7 @@ function getStepIndex(stepId) {
 }
 
 function setActiveStep(stepId) {
-  if (!STEP_ORDER.includes(stepId)) return;
+  if (stepId !== null && !STEP_ORDER.includes(stepId)) return;
   activeStepId = stepId;
   stepPanels.forEach((panel) => {
     const isActive = panel.id === stepId;
@@ -518,7 +640,14 @@ function renderCapturedDeviceInfo(info) {
   const keyValue = info?.privateKey ? maskPrivateKeyValue(info.privateKey) : "Not captured";
   const guestPasswordValue = formatCapturedSecret(info?.guestPassword || "");
   const wifiSsidValue = formatCapturedValue(info?.wifiSsid || "");
-  const mqttUriValue = formatCapturedValue(info?.mqttUri || "");
+  const mqttUris = Array.isArray(info?.brokers)
+    ? info.brokers
+      .filter((broker) => broker?.uri)
+      .map((broker) => `Broker ${broker.index}: ${broker.uri}`)
+    : [];
+  const mqttUriValue = mqttUris.length > 0
+    ? mqttUris.join(" | ")
+    : formatCapturedValue(info?.mqttUri || "");
 
   setText(capturedName, nameValue);
   setText(capturedLat, latValue);
@@ -556,7 +685,7 @@ function loadCapturedDeviceInfo(boardId) {
 
 function readStep4SettingsFromForm() {
   const formData = new FormData(settingsForm);
-  const primaryBroker = readBrokerSettings(formData, 1);
+  const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1));
   return {
     repeaterName: String(formData.get("repeaterName") || ""),
     privateKey: String(formData.get("privateKey") || ""),
@@ -566,14 +695,10 @@ function readStep4SettingsFromForm() {
     deviceLon: String(formData.get("deviceLon") || ""),
     wifiSsid: String(formData.get("wifiSsid") || ""),
     wifiPassword: String(formData.get("wifiPassword") || ""),
-    mqttUri: primaryBroker.uri,
-    mqttUsername: primaryBroker.username,
-    mqttPassword: primaryBroker.password,
-    topicRoot: primaryBroker.topicRoot,
-    iata: primaryBroker.iata,
-    model: primaryBroker.model,
-    retainStatus: primaryBroker.retainStatus,
-    clientVersion: primaryBroker.clientVersion
+    additionalBrokerCount: sanitizeAdditionalBrokerCount(formData.get("additionalBrokerCount")),
+    model: String(formData.get("model") || ""),
+    clientVersion: String(formData.get("clientVersion") || ""),
+    brokers
   };
 }
 
@@ -609,13 +734,7 @@ function applySavedStep4SettingsToForm(settings) {
   const fieldMap = {
     wifiSsid: "wifiSsid",
     wifiPassword: "wifiPassword",
-    mqttUri: "mqttUri",
-    mqttUsername: "mqttUsername",
-    mqttPassword: "mqttPassword",
-    topicRoot: "topicRoot",
-    iata: "iata",
     model: "model",
-    retainStatus: "retainStatus",
     clientVersion: "clientVersion"
   };
 
@@ -626,6 +745,38 @@ function applySavedStep4SettingsToForm(settings) {
       input.value = settings[key] || input.value || "";
     }
   });
+
+  if (additionalBrokerCountInput) {
+    additionalBrokerCountInput.value = String(sanitizeAdditionalBrokerCount(settings.additionalBrokerCount));
+  }
+
+  const brokers = Array.isArray(settings.brokers)
+    ? settings.brokers.map((broker, offset) => normalizeBrokerRecord(broker?.index || offset + 1, broker))
+    : [normalizeBrokerRecord(1, {
+      uri: settings.mqttUri,
+      username: settings.mqttUsername,
+      password: settings.mqttPassword,
+      topicRoot: settings.topicRoot,
+      iata: settings.iata,
+      retainStatus: settings.retainStatus
+    })];
+
+  mqttStatusBrokerToggles.forEach((toggle, offset) => {
+    if (!toggle) return;
+    const statusSlot = logicalBrokerStatusSlot(offset + 1);
+    const broker = brokers.find((item) => item.index === statusSlot);
+    toggle.checked = Boolean(broker?.enabled || broker?.uri || broker?.topicRoot || broker?.iata || broker?.username || broker?.password);
+  });
+
+  brokers.forEach((broker) => {
+    ["uri", "username", "password", "topicRoot", "iata", "retainStatus"].forEach((key) => {
+      const input = getBrokerFieldInput(broker.index, key);
+      if (!input || typeof input.value !== "string") return;
+      input.value = broker[key] || (key === "retainStatus" ? "0" : "");
+    });
+  });
+  syncAllBrokerDefaultTopicTogglesFromValues();
+  updateAdditionalBrokerVisibility();
   updateBrokerTopicPreviews();
 }
 
@@ -647,13 +798,7 @@ function applyCapturedDeviceInfoToForm(info) {
   const capturedFieldMap = {
     wifiSsid: "wifiSsid",
     wifiPassword: "wifiPassword",
-    mqttUri: "mqttUri",
-    mqttUsername: "mqttUsername",
-    mqttPassword: "mqttPassword",
-    topicRoot: "topicRoot",
-    iata: "iata",
     model: "model",
-    retainStatus: "retainStatus",
     clientVersion: "clientVersion"
   };
 
@@ -664,6 +809,38 @@ function applyCapturedDeviceInfoToForm(info) {
       input.value = info[key];
     }
   });
+
+  if (additionalBrokerCountInput) {
+    additionalBrokerCountInput.value = String(Math.max(0, highestConfiguredAdditionalBrokerIndex(info) - 1));
+  }
+
+  const brokers = Array.isArray(info.brokers)
+    ? info.brokers.map((broker, offset) => normalizeBrokerRecord(broker?.index || offset + 1, broker))
+    : [normalizeBrokerRecord(1, {
+      uri: info.mqttUri,
+      username: info.mqttUsername,
+      password: info.mqttPassword,
+      topicRoot: info.topicRoot,
+      iata: info.iata,
+      retainStatus: info.retainStatus
+    })];
+
+  mqttStatusBrokerToggles.forEach((toggle, offset) => {
+    if (!toggle) return;
+    const statusSlot = logicalBrokerStatusSlot(offset + 1);
+    const broker = brokers.find((item) => item.index === statusSlot);
+    toggle.checked = Boolean(broker?.enabled || broker?.uri || broker?.topicRoot || broker?.iata || broker?.username || broker?.password);
+  });
+
+  brokers.forEach((broker) => {
+    ["uri", "username", "password", "topicRoot", "iata", "retainStatus"].forEach((key) => {
+      const input = getBrokerFieldInput(broker.index, key);
+      if (!input || typeof input.value !== "string") return;
+      input.value = broker[key] || (key === "retainStatus" ? "0" : "");
+    });
+  });
+  syncAllBrokerDefaultTopicTogglesFromValues();
+  updateAdditionalBrokerVisibility();
   updateBrokerTopicPreviews();
 }
 
@@ -689,14 +866,28 @@ function buildBackupFileContents() {
     lines.push(`Radio: ${captured.radio || ""}`);
     lines.push(`WiFi SSID: ${captured.wifiSsid || ""}`);
     lines.push(`WiFi Password: ${captured.wifiPassword || ""}`);
-    lines.push(`MQTT URI: ${captured.mqttUri || ""}`);
-    lines.push(`MQTT Username: ${captured.mqttUsername || ""}`);
-    lines.push(`MQTT Password: ${captured.mqttPassword || ""}`);
-    lines.push(`MQTT Topic Root: ${captured.topicRoot || ""}`);
-    lines.push(`MQTT IATA: ${captured.iata || ""}`);
     lines.push(`MQTT Model: ${captured.model || ""}`);
-    lines.push(`MQTT Retain Status: ${captured.retainStatus || ""}`);
     lines.push(`MQTT Client Version: ${captured.clientVersion || ""}`);
+    lines.push(`Additional Brokers: ${captured.additionalBrokerCount || 0}`);
+    const capturedBrokers = Array.isArray(captured.brokers)
+      ? captured.brokers
+      : [normalizeBrokerRecord(1, {
+        uri: captured.mqttUri,
+        username: captured.mqttUsername,
+        password: captured.mqttPassword,
+        topicRoot: captured.topicRoot,
+        iata: captured.iata,
+        retainStatus: captured.retainStatus
+      })];
+    capturedBrokers.forEach((broker) => {
+      lines.push(`MQTT Broker ${broker.index} Enabled: ${broker.enabled ? "1" : "0"}`);
+      lines.push(`MQTT Broker ${broker.index} URI: ${broker.uri || ""}`);
+      lines.push(`MQTT Broker ${broker.index} Username: ${broker.username || ""}`);
+      lines.push(`MQTT Broker ${broker.index} Password: ${broker.password || ""}`);
+      lines.push(`MQTT Broker ${broker.index} Topic Root: ${broker.topicRoot || ""}`);
+      lines.push(`MQTT Broker ${broker.index} IATA: ${broker.iata || ""}`);
+      lines.push(`MQTT Broker ${broker.index} Retain Status: ${broker.retainStatus || ""}`);
+    });
   } else {
     lines.push("No captured device values are stored for this board in this browser.");
   }
@@ -711,14 +902,28 @@ function buildBackupFileContents() {
   lines.push(`Longitude: ${saved?.deviceLon || ""}`);
   lines.push(`WiFi SSID: ${saved?.wifiSsid || ""}`);
   lines.push(`WiFi Password: ${saved?.wifiPassword || ""}`);
-  lines.push(`MQTT URI: ${saved?.mqttUri || ""}`);
-  lines.push(`MQTT Username: ${saved?.mqttUsername || ""}`);
-  lines.push(`MQTT Password: ${saved?.mqttPassword || ""}`);
-  lines.push(`MQTT Topic Root: ${saved?.topicRoot || ""}`);
-  lines.push(`MQTT IATA: ${saved?.iata || ""}`);
   lines.push(`MQTT Model: ${saved?.model || ""}`);
-  lines.push(`MQTT Retain Status: ${saved?.retainStatus || ""}`);
   lines.push(`MQTT Client Version: ${saved?.clientVersion || ""}`);
+  lines.push(`Additional Brokers: ${saved?.additionalBrokerCount || 0}`);
+  const savedBrokers = Array.isArray(saved?.brokers)
+    ? saved.brokers
+    : [normalizeBrokerRecord(1, {
+      uri: saved?.mqttUri,
+      username: saved?.mqttUsername,
+      password: saved?.mqttPassword,
+      topicRoot: saved?.topicRoot,
+      iata: saved?.iata,
+      retainStatus: saved?.retainStatus
+    })];
+  savedBrokers.forEach((broker) => {
+    lines.push(`MQTT Broker ${broker.index} Enabled: ${broker.enabled ? "1" : "0"}`);
+    lines.push(`MQTT Broker ${broker.index} URI: ${broker.uri || ""}`);
+    lines.push(`MQTT Broker ${broker.index} Username: ${broker.username || ""}`);
+    lines.push(`MQTT Broker ${broker.index} Password: ${broker.password || ""}`);
+    lines.push(`MQTT Broker ${broker.index} Topic Root: ${broker.topicRoot || ""}`);
+    lines.push(`MQTT Broker ${broker.index} IATA: ${broker.iata || ""}`);
+    lines.push(`MQTT Broker ${broker.index} Retain Status: ${broker.retainStatus || ""}`);
+  });
   lines.push("");
   lines.push("Admin password cannot be read back from MeshCore CLI.");
 
@@ -877,7 +1082,7 @@ function updateSerialButton() {
     serialButton.textContent = "Disconnect Serial";
     return;
   }
-  serialButton.textContent = flashComplete ? "Connect Serial" : "Connect Serial (After Flash)";
+  serialButton.textContent = "Connect Serial";
 }
 
 function notifyLineListeners(line) {
@@ -926,6 +1131,7 @@ async function requestPreferredPort() {
 function pushSerialLine(line) {
   if (!line.trim()) return;
   appendLog(`[rx] ${line}`);
+  registerMqttRuntimeLine(line);
   notifyLineListeners(line);
 }
 
@@ -1027,15 +1233,16 @@ function updateRadioPresetFromInputs() {
   syncRadioCommand();
 }
 
-function buildConfigurationPlan({ validatePrivateKey = true } = {}) {
+function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true } = {}) {
   const formData = new FormData(settingsForm);
   const repeaterName = String(repeaterNameInput?.value || "").trim() || String(capturedDeviceInfo?.name || "").trim();
-  const currentPrivateKey = String(capturedDeviceInfo?.privateKey || "").trim();
-  const privateKey = String(privateKeyInput?.value || "").trim() || currentPrivateKey;
+  const privateKey = String(privateKeyInput?.value || "").trim();
   const guestPassword = String(guestPasswordInput?.value || "").trim();
   const adminPassword = String(adminPasswordInput?.value || "").trim();
   const latitude = String(deviceLatInput?.value || "").trim() || String(capturedDeviceInfo?.lat || "").trim();
   const longitude = String(deviceLonInput?.value || "").trim() || String(capturedDeviceInfo?.lon || "").trim();
+  const sharedModel = String(formData.get("model") || "").trim();
+  const sharedClientVersion = String(formData.get("clientVersion") || "").trim();
   const invalidNameChars = repeaterName.match(/[[\]\\:,?*]/g);
 
   if (repeaterName.length > 31) {
@@ -1068,9 +1275,17 @@ function buildConfigurationPlan({ validatePrivateKey = true } = {}) {
     }
   }
 
-  const primaryBroker = readBrokerSettings(formData, 1);
-  if (!primaryBroker.uri) {
-    throw new Error("MQTT URI is required");
+  const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1));
+  const enabledBrokers = brokers.filter((broker) => broker.enabled);
+  if (requireMqtt && !brokers[0].uri) {
+    throw new Error("Primary MQTT URI is required");
+  }
+  if (requireMqtt) {
+    enabledBrokers.forEach((broker) => {
+      if (!broker.uri) {
+        throw new Error(`Broker ${broker.index} URI is required`);
+      }
+    });
   }
 
   const identityCommands = [];
@@ -1120,58 +1335,75 @@ function buildConfigurationPlan({ validatePrivateKey = true } = {}) {
       }
     ],
     mqtt: [
-      {
-        command: `set mqtt.uri ${primaryBroker.uri}`,
-        verifyKey: "mqtt.uri",
-        expectedValue: primaryBroker.uri
-      },
-      {
-        command: `set mqtt.username ${primaryBroker.username}`,
-        verifyKey: "mqtt.username",
-        expectedValue: primaryBroker.username
-      },
-      {
-        command: `set mqtt.password ${primaryBroker.password}`,
-        verifyKey: "mqtt.password",
-        expectedValue: primaryBroker.password
-      },
-      {
-        command: `set mqtt.topic.root ${primaryBroker.topicRoot}`,
-        verifyKey: "mqtt.topic.root",
-        expectedValue: primaryBroker.topicRoot
-      },
-      {
-        command: `set mqtt.iata ${primaryBroker.iata}`,
-        verifyKey: "mqtt.iata",
-        expectedValue: primaryBroker.iata
-      },
-      {
-        command: `set mqtt.model ${primaryBroker.model}`,
+      ...(sharedModel ? [{
+        command: `set mqtt.model ${sharedModel}`,
         verifyKey: "mqtt.model",
-        expectedValue: primaryBroker.model
-      },
-      {
-        command: `set mqtt.retain.status ${primaryBroker.retainStatus}`,
-        verifyKey: "mqtt.retain.status",
-        expectedValue: primaryBroker.retainStatus
-      },
-      {
-        command: `set mqtt.client.version ${primaryBroker.clientVersion}`,
+        expectedValue: sharedModel
+      }] : []),
+      ...(sharedClientVersion ? [{
+        command: `set mqtt.client.version ${sharedClientVersion}`,
         verifyKey: "mqtt.client.version",
-        expectedValue: primaryBroker.clientVersion
-      }
+        expectedValue: sharedClientVersion
+      }] : []),
+      ...brokers.flatMap((broker) => {
+        if (!broker.enabled) {
+          return [{
+            command: `set mqtt.${broker.index}.enabled 0`,
+            verifyKey: `mqtt.${broker.index}.enabled`,
+            expectedValue: "0"
+          }];
+        }
+
+        const entries = [];
+        entries.push({
+          command: `set mqtt.${broker.index}.uri ${broker.uri}`,
+          verifyKey: `mqtt.${broker.index}.uri`,
+          expectedValue: broker.uri
+        });
+        entries.push({
+          command: `set mqtt.${broker.index}.username ${broker.username}`,
+          verifyKey: `mqtt.${broker.index}.username`,
+          expectedValue: broker.username
+        });
+        entries.push({
+          command: `set mqtt.${broker.index}.password ${broker.password}`,
+          verifyKey: `mqtt.${broker.index}.password`,
+          expectedValue: broker.password
+        });
+        entries.push({
+          command: `set mqtt.${broker.index}.topic.root ${broker.topicRoot}`,
+          verifyKey: `mqtt.${broker.index}.topic.root`,
+          expectedValue: broker.topicRoot
+        });
+        entries.push({
+          command: `set mqtt.${broker.index}.iata ${broker.iata}`,
+          verifyKey: `mqtt.${broker.index}.iata`,
+          expectedValue: broker.iata
+        });
+        entries.push({
+          command: `set mqtt.${broker.index}.retain.status ${broker.retainStatus}`,
+          verifyKey: `mqtt.${broker.index}.retain.status`,
+          expectedValue: broker.retainStatus
+        });
+        entries.push({
+          command: `set mqtt.${broker.index}.enabled 1`,
+          verifyKey: `mqtt.${broker.index}.enabled`,
+          expectedValue: "1"
+        });
+        return entries;
+      })
     ],
     key: keyCommands,
     reboot: ["reboot"],
     metadata: {
-      enabledBrokerCount: primaryBroker.uri ? 1 : 0
+      enabledBrokerCount: enabledBrokers.length
     }
   };
 }
 
 function maskSensitiveCommand(command) {
-  if (/^set mqtt\.broker\d+\.password\s+/i.test(command)) {
-    return command.replace(/^(set mqtt\.broker\d+\.password\s+).+$/i, "$1********");
+  if (/^set mqtt\.\d+\.password\s+/i.test(command)) {
+    return command.replace(/^(set mqtt\.\d+\.password\s+).+$/i, "$1********");
   }
   const prefix = SENSITIVE_COMMAND_PREFIXES.find((value) => command.startsWith(value));
   if (!prefix) return command;
@@ -1388,9 +1620,13 @@ async function connectSerial() {
 }
 
 function buildCommandPreview() {
-  const plan = buildConfigurationPlan({ validatePrivateKey: false });
-  const commands = [...plan.radio, ...plan.identity, ...plan.auth, ...plan.wifi, ...plan.mqtt, ...plan.key, ...plan.reboot];
-  commandPreviewPane.textContent = commands.map((entry) => maskSensitiveCommand(commandText(entry))).join("\n");
+  try {
+    const plan = buildConfigurationPlan({ validatePrivateKey: false, requireMqtt: false });
+    const commands = [...plan.radio, ...plan.identity, ...plan.auth, ...plan.wifi, ...plan.key, ...plan.mqtt, ...plan.reboot];
+    commandPreviewPane.textContent = commands.map((entry) => maskSensitiveCommand(commandText(entry))).join("\n");
+  } catch (error) {
+    commandPreviewPane.textContent = `Preview unavailable: ${error.message}`;
+  }
 }
 
 function stamp() {
@@ -1410,6 +1646,34 @@ function appendLog(message) {
 function setText(target, value) {
   if (!target) return;
   target.textContent = value;
+}
+
+function resetMqttRuntimeState(stateText = null, summaryText = null) {
+  activeMqttBrokerIds = new Set();
+  if (stateText !== null) {
+    setText(stateMqtt, stateText);
+  }
+  if (summaryText !== null) {
+    setText(summaryMqtt, summaryText);
+  }
+}
+
+function registerMqttRuntimeLine(line) {
+  const heapMatch = line.match(/MQTT reporter:\s+init broker\s+(\d+)\s+heap=(\d+)/i);
+  if (!heapMatch) {
+    return;
+  }
+
+  const brokerId = Number.parseInt(heapMatch[1], 10);
+  const heapValue = Number.parseInt(heapMatch[2], 10);
+  if (!Number.isFinite(brokerId) || !Number.isFinite(heapValue) || heapValue <= 0) {
+    return;
+  }
+
+  activeMqttBrokerIds.add(brokerId);
+  const activeCount = activeMqttBrokerIds.size;
+  setText(stateMqtt, `Active (${activeCount})`);
+  setText(summaryMqtt, `Broker heap detected on ${activeCount} broker${activeCount === 1 ? "" : "s"}`);
 }
 
 function setPanelState(target, text, variant) {
@@ -1556,7 +1820,7 @@ async function readOptionalSettingValue(key, timeoutMs = 6000) {
 
 function buildExpectedVerifyState() {
   const formData = new FormData(settingsForm);
-  const primaryBroker = readBrokerSettings(formData, 1);
+  const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1));
   return {
     radio: {
       frequency: normalizeVerifyValue(radioFrequency.value),
@@ -1567,18 +1831,22 @@ function buildExpectedVerifyState() {
     name: normalizeVerifyValue(repeaterNameInput?.value) || normalizeVerifyValue(capturedDeviceInfo?.name),
     lat: normalizeVerifyValue(deviceLatInput?.value) || normalizeVerifyValue(capturedDeviceInfo?.lat),
     lon: normalizeVerifyValue(deviceLonInput?.value) || normalizeVerifyValue(capturedDeviceInfo?.lon),
-    privateKey: normalizeVerifyValue(privateKeyInput?.value) || normalizeVerifyValue(capturedDeviceInfo?.privateKey),
+    privateKey: normalizeVerifyValue(privateKeyInput?.value),
     guestPassword: normalizeVerifyValue(guestPasswordInput?.value),
     wifiSsid: normalizeVerifyValue(formData.get("wifiSsid")),
     wifiPassword: normalizeVerifyValue(formData.get("wifiPassword")),
-    mqttUri: normalizeVerifyValue(primaryBroker.uri),
-    mqttUsername: normalizeVerifyValue(primaryBroker.username),
-    mqttPassword: normalizeVerifyValue(primaryBroker.password),
-    topicRoot: normalizeVerifyValue(primaryBroker.topicRoot),
-    iata: normalizeVerifyValue(primaryBroker.iata),
-    model: normalizeVerifyValue(primaryBroker.model),
-    retainStatus: normalizeVerifyValue(primaryBroker.retainStatus),
-    clientVersion: normalizeVerifyValue(primaryBroker.clientVersion)
+    model: normalizeVerifyValue(formData.get("model")),
+    clientVersion: normalizeVerifyValue(formData.get("clientVersion")),
+    brokers: brokers.map((broker) => ({
+      index: broker.index,
+      enabled: broker.enabled ? "1" : "0",
+      uri: normalizeVerifyValue(broker.uri),
+      username: normalizeVerifyValue(broker.username),
+      password: normalizeVerifyValue(broker.password),
+      topicRoot: normalizeVerifyValue(broker.topicRoot),
+      iata: normalizeVerifyValue(broker.iata),
+      retainStatus: normalizeVerifyValue(broker.retainStatus)
+    }))
   };
 }
 
@@ -1623,13 +1891,7 @@ async function collectVerificationResult(plan) {
     { key: "guest.password", expected: expected.guestPassword, label: "guest password", sensitive: true, retryEntry: plan.auth.find((entry) => entry.verifyKey === "guest.password") },
     { key: "mqtt.wifi.ssid", expected: expected.wifiSsid, label: "WiFi SSID", retryEntry: plan.wifi.find((entry) => entry.verifyKey === "mqtt.wifi.ssid") },
     { key: "mqtt.wifi.pass", expected: expected.wifiPassword, label: "WiFi password", sensitive: true, retryEntry: plan.wifi.find((entry) => entry.verifyKey === "mqtt.wifi.pass") },
-    { key: "mqtt.uri", expected: expected.mqttUri, label: "MQTT URI", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.uri") },
-    { key: "mqtt.username", expected: expected.mqttUsername, label: "MQTT username", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.username") },
-    { key: "mqtt.password", expected: expected.mqttPassword, label: "MQTT password", sensitive: true, retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.password") },
-    { key: "mqtt.topic.root", expected: expected.topicRoot, label: "MQTT topic root", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.topic.root") },
-    { key: "mqtt.iata", expected: expected.iata, label: "MQTT IATA", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.iata") },
     { key: "mqtt.model", expected: expected.model, label: "MQTT model", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.model") },
-    { key: "mqtt.retain.status", expected: expected.retainStatus, label: "MQTT retain status", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.retain.status") },
     { key: "mqtt.client.version", expected: expected.clientVersion, label: "MQTT client version", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.client.version") }
   ];
 
@@ -1660,6 +1922,37 @@ async function collectVerificationResult(plan) {
       }
     } else {
       appendLog(`Verified ${check.label}.`);
+    }
+  }
+
+  for (const broker of expected.brokers) {
+    const brokerChecks = [
+      { key: `mqtt.${broker.index}.enabled`, expected: broker.enabled, label: `broker ${broker.index} enabled` }
+    ];
+
+    if (broker.enabled === "1") {
+      brokerChecks.push(
+        { key: `mqtt.${broker.index}.uri`, expected: broker.uri, label: `broker ${broker.index} URI` },
+        { key: `mqtt.${broker.index}.username`, expected: broker.username, label: `broker ${broker.index} username` },
+        { key: `mqtt.${broker.index}.password`, expected: broker.password, label: `broker ${broker.index} password`, sensitive: true },
+        { key: `mqtt.${broker.index}.topic.root`, expected: broker.topicRoot, label: `broker ${broker.index} topic root` },
+        { key: `mqtt.${broker.index}.iata`, expected: broker.iata, label: `broker ${broker.index} IATA` },
+        { key: `mqtt.${broker.index}.retain.status`, expected: broker.retainStatus, label: `broker ${broker.index} retain status` }
+      );
+    }
+
+    for (const check of brokerChecks) {
+      const retryEntry = plan.mqtt.find((entry) => entry.verifyKey === check.key);
+      const result = await readSettingValue(check.key, 7000);
+      const actualValue = normalizeVerifyValue(result.value);
+      if (actualValue !== normalizeVerifyValue(check.expected)) {
+        failures.push(
+          `${check.label} mismatch (device: ${check.sensitive ? "********" : actualValue || "blank"})`
+        );
+        pushUniqueRetryCommand(retryPlan.mqtt, retryEntry);
+      } else {
+        appendLog(`Verified ${check.label}.`);
+      }
     }
   }
 
@@ -1709,11 +2002,11 @@ async function applyRetryPlan(retryPlan) {
   if (retryPlan.wifi.length > 0) {
     await runCommands(retryPlan.wifi);
   }
-  if (retryPlan.mqtt.length > 0) {
-    await runCommands(retryPlan.mqtt);
-  }
   if (retryPlan.key.length > 0) {
     await runCommands(retryPlan.key);
+  }
+  if (retryPlan.mqtt.length > 0) {
+    await runCommands(retryPlan.mqtt);
   }
   if (retryPlan.reconnectOnly) {
     await runCommandExpectOk("mqtt reconnect", 8000);
@@ -1742,14 +2035,56 @@ async function captureCurrentDeviceInfo() {
     const radioResult = await readOptionalSettingValue("radio");
     const wifiSsidResult = await readOptionalSettingValue("mqtt.wifi.ssid");
     const wifiPasswordResult = await readOptionalSettingValue("mqtt.wifi.pass");
-    const mqttUriResult = await readOptionalSettingValue("mqtt.uri");
-    const mqttUsernameResult = await readOptionalSettingValue("mqtt.username");
-    const mqttPasswordResult = await readOptionalSettingValue("mqtt.password");
-    const topicRootResult = await readOptionalSettingValue("mqtt.topic.root");
-    const iataResult = await readOptionalSettingValue("mqtt.iata");
     const modelResult = await readOptionalSettingValue("mqtt.model");
-    const retainStatusResult = await readOptionalSettingValue("mqtt.retain.status");
     const clientVersionResult = await readOptionalSettingValue("mqtt.client.version");
+    const brokers = [];
+
+    for (let index = 1; index <= MQTT_MAX_BROKERS; index += 1) {
+      const enabledResult = await readOptionalSettingValue(`mqtt.${index}.enabled`);
+      const uriResult = await readOptionalSettingValue(`mqtt.${index}.uri`);
+      const usernameResult = await readOptionalSettingValue(`mqtt.${index}.username`);
+      const passwordResult = await readOptionalSettingValue(`mqtt.${index}.password`);
+      const topicRootResult = await readOptionalSettingValue(`mqtt.${index}.topic.root`);
+      const iataResult = await readOptionalSettingValue(`mqtt.${index}.iata`);
+      const retainStatusResult = await readOptionalSettingValue(`mqtt.${index}.retain.status`);
+      brokers.push(normalizeBrokerRecord(index, {
+        enabled: normalizeVerifyValue(enabledResult.value) === "1",
+        uri: uriResult.value,
+        username: usernameResult.value,
+        password: passwordResult.value,
+        topicRoot: topicRootResult.value,
+        iata: iataResult.value,
+        retainStatus: retainStatusResult.value || "0"
+      }));
+    }
+
+    if (!brokers[0].uri && !brokers[0].username && !brokers[0].password && !brokers[0].topicRoot && !brokers[0].iata) {
+      appendLog("No broker 1 values found in the new MQTT layout. Trying legacy MQTT keys.");
+      const legacyUriResult = await readOptionalSettingValue("mqtt.uri");
+      const legacyUsernameResult = await readOptionalSettingValue("mqtt.username");
+      const legacyPasswordResult = await readOptionalSettingValue("mqtt.password");
+      const legacyTopicRootResult = await readOptionalSettingValue("mqtt.topic.root");
+      const legacyIataResult = await readOptionalSettingValue("mqtt.iata");
+      const legacyRetainStatusResult = await readOptionalSettingValue("mqtt.retain.status");
+
+      brokers[0] = normalizeBrokerRecord(1, {
+        enabled: Boolean(
+          legacyUriResult.value ||
+          legacyUsernameResult.value ||
+          legacyPasswordResult.value ||
+          legacyTopicRootResult.value ||
+          legacyIataResult.value
+        ),
+        uri: legacyUriResult.value,
+        username: legacyUsernameResult.value,
+        password: legacyPasswordResult.value,
+        topicRoot: legacyTopicRootResult.value,
+        iata: legacyIataResult.value,
+        retainStatus: legacyRetainStatusResult.value || "0"
+      });
+    }
+
+    const highestAdditionalBrokerIndex = highestConfiguredAdditionalBrokerIndex({ brokers });
 
     const info = {
       name: nameResult.value,
@@ -1760,14 +2095,16 @@ async function captureCurrentDeviceInfo() {
       radio: radioResult.value,
       wifiSsid: wifiSsidResult.value,
       wifiPassword: wifiPasswordResult.value,
-      mqttUri: mqttUriResult.value,
-      mqttUsername: mqttUsernameResult.value,
-      mqttPassword: mqttPasswordResult.value,
-      topicRoot: topicRootResult.value,
-      iata: iataResult.value,
+      mqttUri: brokers[0]?.uri || "",
+      mqttUsername: brokers[0]?.username || "",
+      mqttPassword: brokers[0]?.password || "",
+      topicRoot: brokers[0]?.topicRoot || "",
+      iata: brokers[0]?.iata || "",
+      retainStatus: brokers[0]?.retainStatus || "0",
       model: modelResult.value,
-      retainStatus: retainStatusResult.value,
       clientVersion: clientVersionResult.value,
+      additionalBrokerCount: Math.max(0, highestAdditionalBrokerIndex - 1),
+      brokers,
       capturedAt: new Date().toISOString()
     };
 
@@ -1991,8 +2328,7 @@ async function flashFirmware(kind) {
     setText(stateFlash, kind === "full" ? "Full image flashed" : "Update image flashed");
     setText(summaryFirmware, flashArtifacts.map((artifact) => artifact.imageName).join(", "));
     setText(summaryConfig, "Not sent");
-    setText(stateMqtt, "Awaiting apply");
-    setText(summaryMqtt, "Awaiting verify");
+    resetMqttRuntimeState("Awaiting apply", "Awaiting verify");
     setPanelState(settingsState, "Apply radio + MQTT settings", "panel__status--ready");
     setPanelState(serialState, "Reconnect serial", "panel__status--idle");
     setPanelState(verifyState, "Waiting", "panel__status--idle");
@@ -2052,12 +2388,12 @@ stepPanels.forEach((panel) => {
   header.setAttribute("role", "button");
   header.setAttribute("tabindex", "0");
   header.addEventListener("click", () => {
-    setActiveStep(panel.id);
+    setActiveStep(activeStepId === panel.id ? null : panel.id);
   });
   header.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      setActiveStep(panel.id);
+      setActiveStep(activeStepId === panel.id ? null : panel.id);
     }
   });
 });
@@ -2065,30 +2401,35 @@ stepPanels.forEach((panel) => {
 Array.from(document.querySelectorAll("#settings-form input, #settings-form select, [form='settings-form']")).forEach((input) => {
   input.addEventListener("input", () => {
     syncAllBrokerTopicModes();
+    updateAdditionalBrokerVisibility();
     persistCurrentStep4Settings();
     updateBrokerTopicPreviews();
     buildCommandPreview();
   });
 });
 
-[1, 2, 3, 4, 5].forEach((index) => {
+[1, 2, 3, 4, 5, 6].forEach((index) => {
   const uriInput = getBrokerUriInput(index);
-  const { tlsInput, websocketInput } = getBrokerTransportInputs(index);
+  const topicRootInput = getBrokerTopicRootInput(index);
+  const defaultTopicToggle = getBrokerDefaultTopicToggle(index);
 
   uriInput?.addEventListener("input", () => {
-    syncBrokerTransportCheckboxesFromUri(index);
     persistCurrentStep4Settings();
     updateBrokerTopicPreviews();
     buildCommandPreview();
   });
 
-  [tlsInput, websocketInput].forEach((input) => {
-    input?.addEventListener("change", () => {
-      syncBrokerUriFromTransport(index);
-      persistCurrentStep4Settings();
-      updateBrokerTopicPreviews();
-      buildCommandPreview();
-    });
+  topicRootInput?.addEventListener("input", () => {
+    persistCurrentStep4Settings();
+    updateBrokerTopicPreviews();
+    buildCommandPreview();
+  });
+
+  defaultTopicToggle?.addEventListener("change", () => {
+    syncBrokerTopicMode(index);
+    persistCurrentStep4Settings();
+    updateBrokerTopicPreviews();
+    buildCommandPreview();
   });
 });
 
@@ -2100,6 +2441,15 @@ if (additionalBrokerCountInput) {
     updateAdditionalBrokerVisibility();
   });
 }
+
+mqttStatusBrokerToggles.forEach((toggle) => {
+  toggle?.addEventListener("change", () => {
+    updateAdditionalBrokerVisibility();
+    persistCurrentStep4Settings();
+    updateBrokerTopicPreviews();
+    buildCommandPreview();
+  });
+});
 
 settingsForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -2247,6 +2597,7 @@ async function applySettings(mode = "all") {
 
   setPanelState(settingsState, "Writing", "panel__status--busy");
   markApplyStages(mode);
+  resetMqttRuntimeState(mode === "mqtt" ? "Applying" : "Rebooting", mode === "mqtt" ? "Awaiting runtime state" : "Reconnect serial to verify");
 
   try {
     window.alert(
@@ -2255,7 +2606,7 @@ async function applySettings(mode = "all") {
       "Keep the board plugged in and avoid disconnecting it while settings are being applied."
     );
 
-    const plan = buildConfigurationPlan();
+    const plan = buildConfigurationPlan({ requireMqtt: mode !== "device-wifi" });
     appendLog(mode === "all" ? "Applying all settings immediately." : mode === "device-wifi" ? "Applying device, radio, and WiFi settings." : "Applying MQTT settings only.");
     syncActiveStep("configure-device", { force: true });
 
@@ -2266,6 +2617,9 @@ async function applySettings(mode = "all") {
 
     await ensureSerialCliReady();
     if (mode !== "mqtt") {
+      appendLog(mode === "all"
+        ? "Applying device, radio, WiFi, and key settings first. MQTT will be written after."
+        : "Applying device, radio, WiFi, and key settings.");
       await runCommandExpectOk(plan.radio[0], 10000);
       setCommandState(1, "is-done", "Written");
       setCommandState(2, "is-running", "Running");
@@ -2282,6 +2636,9 @@ async function applySettings(mode = "all") {
       }
       setCommandState(3, "is-running", "Running");
       await runCommands(plan.wifi);
+      if (plan.key.length > 0) {
+        await runCommands(plan.key);
+      }
       setCommandState(3, "is-done", "Written");
 
       if (mode === "all") {
@@ -2291,16 +2648,12 @@ async function applySettings(mode = "all") {
       }
 
       setCommandState(5, "is-running", "Rebooting");
-      if (plan.key.length > 0) {
-        await runCommands(plan.key);
-      }
       logSerialCommand(plan.reboot[0]);
       await writeSerialCommand(plan.reboot[0]);
       setCommandState(5, "is-done", "Rebooted");
       setPanelState(settingsState, "Saved, rebooted", "panel__status--success");
       setText(summaryConfig, mode === "all" ? "All commands applied, rebooted" : "Device + WiFi applied, rebooted");
-      setText(stateMqtt, "Rebooting");
-      setText(summaryMqtt, "Reconnect serial to verify");
+      resetMqttRuntimeState("Rebooting", "Reconnect serial to verify");
       setPanelState(verifyState, "Reconnect serial after reboot", "panel__status--idle");
       if (mode === "all") {
         configApplied = true;
@@ -2320,11 +2673,15 @@ async function applySettings(mode = "all") {
     await runCommandExpectOk("mqtt reconnect", 8000);
     try {
       const { connected } = await readMqttStatus(8000);
-      setText(stateMqtt, connected ? "Connected" : "Disconnected");
-      setText(summaryMqtt, connected ? "mqtt.connected=true" : "mqtt.connected=false");
+      if (activeMqttBrokerIds.size === 0) {
+        setText(stateMqtt, connected ? "Connected" : "Disconnected");
+        setText(summaryMqtt, connected ? "mqtt.connected=true" : "mqtt.connected=false");
+      }
     } catch (error) {
-      setText(stateMqtt, "Unknown");
-      setText(summaryMqtt, "MQTT status unknown");
+      if (activeMqttBrokerIds.size === 0) {
+        setText(stateMqtt, "Unknown");
+        setText(summaryMqtt, "MQTT status unknown");
+      }
       appendLog(`MQTT status check warning: ${error.message}`);
     }
   } catch (error) {
@@ -2340,63 +2697,6 @@ settingsApplyMqttButton?.addEventListener("click", () => applySettings("mqtt"));
 if (configureButton) {
   configureButton.addEventListener("click", () => applySettings("all"));
 }
-
-reconnectButton.addEventListener("click", async () => {
-  if (!serialConnected) {
-    setPanelState(serialState, "Serial required", "panel__status--error");
-    appendLog("Connect serial before reconnecting MQTT.");
-    return;
-  }
-
-  syncActiveStep("configure-device", { force: true });
-  setPanelState(verifyState, "Checking", "panel__status--busy");
-  setText(stateMqtt, "Reconnecting");
-  try {
-    await runCommandExpectOk("mqtt reconnect", 8000);
-    await delay(1500);
-    const { connected } = await readMqttStatus();
-    if (!connected) {
-      setPanelState(verifyState, "MQTT offline", "panel__status--error");
-      setText(stateMqtt, "Disconnected");
-      setText(summaryMqtt, "mqtt.connected=false");
-      appendLog("MQTT reconnect command completed, but the device still reports mqtt.connected=false.");
-      return;
-    }
-    setPanelState(verifyState, "MQTT online", "panel__status--success");
-    setText(stateMqtt, "Connected");
-    setText(summaryMqtt, "mqtt.connected=true");
-    appendLog("MQTT reconnect command completed and the device reports mqtt.connected=true.");
-  } catch (error) {
-    setPanelState(verifyState, "Reconnect failed", "panel__status--error");
-    setText(stateMqtt, "Failed");
-    setText(summaryMqtt, "Reconnect failed");
-    appendLog(`Reconnect failed: ${error.message}`);
-  }
-});
-
-verifyButton.addEventListener("click", async () => {
-  if (!serialConnected) {
-    setPanelState(verifyState, "Serial required", "panel__status--error");
-    appendLog("Connect serial before running verification.");
-    return;
-  }
-
-  syncActiveStep("configure-device", { force: true });
-  setPanelState(verifyState, "Checking", "panel__status--busy");
-  try {
-    await ensureSerialCliReady();
-    await verifyDeviceSettings();
-    setPanelState(verifyState, "Verified", "panel__status--success");
-    setText(stateMqtt, "Connected");
-    setText(summaryMqtt, "Device settings verified");
-    appendLog("Verification completed: device settings match the current form and mqtt.connected=true.");
-  } catch (error) {
-    setPanelState(verifyState, "Verify failed", "panel__status--error");
-    setText(stateMqtt, "Unknown");
-    setText(summaryMqtt, "Verification failed");
-    appendLog(`Verification failed: ${error.message}`);
-  }
-});
 
 clearLogButton.addEventListener("click", () => {
   logPane.innerHTML = "";

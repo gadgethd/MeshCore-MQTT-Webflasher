@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MeshCore MQTT Web Flasher</title>
-    <link rel="stylesheet" href="assets/styles.css?v=20260312-0255">
+    <link rel="stylesheet" href="assets/styles.css?v=20260312-2250">
   </head>
   <body>
     <div class="app-shell">
@@ -81,8 +81,8 @@
                   <span class="state-chip__label">Current WiFi SSID</span>
                   <strong id="captured-wifi-ssid">Not captured</strong>
                 </div>
-                <div class="state-chip">
-                  <span class="state-chip__label">Current MQTT URI</span>
+                <div class="state-chip state-chip--wide">
+                  <span class="state-chip__label">Current MQTT URIs</span>
                   <strong id="captured-mqtt-uri">Not captured</strong>
                 </div>
               </div>
@@ -279,82 +279,108 @@
                   </div>
                 </div>
               </div>
-              <form class="settings-grid" id="settings-form">
-                <label class="field field--span-2">
-                  <span class="field__label">Repeater Name</span>
-                  <input
-                    id="repeater-name"
-                    type="text"
-                    name="repeaterName"
-                    maxlength="31"
-                    placeholder="Leave blank to keep the current node name"
-                  >
-                  <span class="field__hint">Optional. MeshCore allows up to 31 characters and rejects `[ ] \ : , ? *`.</span>
-                </label>
-                <label class="field field--span-2">
-                  <span class="field__label">Private Key</span>
-                  <input
-                    id="private-key"
-                    type="password"
-                    name="privateKey"
-                    placeholder="128 hex characters, leave blank to keep the current key"
-                    autocomplete="off"
-                    spellcheck="false"
-                  >
-                  <span class="field__hint">Optional. MeshCore expects a 128-character hex private key and applies it after reboot.</span>
-                </label>
-                <label class="field">
-                  <span class="field__label">Guest Password</span>
-                  <input
-                    id="guest-password"
-                    type="password"
-                    name="guestPassword"
-                    maxlength="15"
-                    placeholder="Leave blank to keep the current guest password"
-                    autocomplete="off"
-                  >
-                  <span class="field__hint">Optional. MeshCore stores up to 15 characters.</span>
-                </label>
-                <label class="field">
-                  <span class="field__label">Admin Password</span>
-                  <input
-                    id="admin-password"
-                    type="password"
-                    name="adminPassword"
-                    maxlength="15"
-                    placeholder="Leave blank to keep the current admin password"
-                    autocomplete="off"
-                  >
-                  <span class="field__hint">Optional. MeshCore stores up to 15 characters.</span>
-                </label>
-                <label class="field">
-                  <span class="field__label">Latitude</span>
-                  <input
-                    id="device-lat"
-                    type="text"
-                    name="deviceLat"
-                    placeholder="Leave blank to keep the current latitude"
-                    inputmode="decimal"
-                  >
-                </label>
-                <label class="field">
-                  <span class="field__label">Longitude</span>
-                  <input
-                    id="device-lon"
-                    type="text"
-                    name="deviceLon"
-                    placeholder="Leave blank to keep the current longitude"
-                    inputmode="decimal"
-                  >
-                </label>
-                <label class="field">
-                  <span class="field__label">WiFi SSID</span>
-                  <input type="text" name="wifiSsid" value="UKMesh-Radio">
-                </label>
-                <label class="field">
-                  <span class="field__label">WiFi Password</span>
-                  <input type="password" name="wifiPassword" value="password123">
-                </label>
+              <form class="settings-form-layout" id="settings-form">
+                <section class="settings-section-card">
+                  <div class="settings-section-card__header">
+                    <p class="panel__eyebrow">Identity</p>
+                    <h3>Repeater Identity</h3>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field field--span-2">
+                      <span class="field__label">Repeater Name</span>
+                      <input
+                        id="repeater-name"
+                        type="text"
+                        name="repeaterName"
+                        maxlength="31"
+                        placeholder="Leave blank to keep the current node name"
+                      >
+                      <span class="field__hint">Optional. MeshCore allows up to 31 characters and rejects `[ ] \ : , ? *`.</span>
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Private Key</span>
+                      <input
+                        id="private-key"
+                        type="password"
+                        name="privateKey"
+                        placeholder="128 hex characters, leave blank to keep the current key"
+                        autocomplete="off"
+                        spellcheck="false"
+                      >
+                      <span class="field__hint">Optional. MeshCore expects a 128-character hex private key and applies it after reboot.</span>
+                    </label>
+                  </div>
+                </section>
+
+                <section class="settings-section-card">
+                  <div class="settings-section-card__header">
+                    <p class="panel__eyebrow">Access</p>
+                    <h3>Passwords And Location</h3>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field">
+                      <span class="field__label">Guest Password</span>
+                      <input
+                        id="guest-password"
+                        type="password"
+                        name="guestPassword"
+                        maxlength="15"
+                        placeholder="Leave blank to keep the current guest password"
+                        autocomplete="off"
+                      >
+                      <span class="field__hint">Optional. MeshCore stores up to 15 characters.</span>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Admin Password</span>
+                      <input
+                        id="admin-password"
+                        type="password"
+                        name="adminPassword"
+                        maxlength="15"
+                        placeholder="Leave blank to keep the current admin password"
+                        autocomplete="off"
+                      >
+                      <span class="field__hint">Optional. MeshCore stores up to 15 characters.</span>
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Latitude</span>
+                      <input
+                        id="device-lat"
+                        type="text"
+                        name="deviceLat"
+                        placeholder="Leave blank to keep the current latitude"
+                        inputmode="decimal"
+                      >
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Longitude</span>
+                      <input
+                        id="device-lon"
+                        type="text"
+                        name="deviceLon"
+                        placeholder="Leave blank to keep the current longitude"
+                        inputmode="decimal"
+                      >
+                    </label>
+                  </div>
+                </section>
+
+                <section class="settings-section-card">
+                  <div class="settings-section-card__header">
+                    <p class="panel__eyebrow">WiFi</p>
+                    <h3>Transport Network</h3>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field">
+                      <span class="field__label">WiFi SSID</span>
+                      <input type="text" name="wifiSsid" value="UKMesh-Radio">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">WiFi Password</span>
+                      <input type="password" name="wifiPassword" value="password123">
+                    </label>
+                  </div>
+                </section>
               </form>
               </div>
             </section>
@@ -368,54 +394,329 @@
                 <span class="panel__status panel__status--idle" id="settings-state">Pending</span>
               </div>
               <div class="step-panel__body">
-              <div class="captured-values">
-                <div class="settings-grid">
-                  <label class="field field--span-2">
-                    <span class="field__label">MQTT URI</span>
-                    <input type="text" name="mqttUri" value="wss://mqtt.ukmesh.com:443/" form="settings-form">
-                  </label>
-                  <label class="field">
-                    <span class="field__label">MQTT Username</span>
-                    <input type="text" name="mqttUsername" value="observer" form="settings-form">
-                  </label>
-                  <label class="field">
-                    <span class="field__label">MQTT Password</span>
-                    <input type="password" name="mqttPassword" value="observer-password" form="settings-form">
-                  </label>
-                  <label class="field field--span-2">
-                    <span class="field__label">Topic Root</span>
-                    <input type="text" name="topicRoot" value="meshcore" form="settings-form">
-                  </label>
-                  <label class="field">
-                    <span class="field__label">IATA</span>
-                    <input type="text" name="iata" value="LHR" form="settings-form">
-                  </label>
-                  <label class="field">
-                    <span class="field__label">Model Label</span>
-                    <input type="text" name="model" value="Heltec V3" form="settings-form">
-                  </label>
-                  <label class="field">
-                    <span class="field__label">Retain Status</span>
-                    <select name="retainStatus" form="settings-form">
-                      <option value="0">Off</option>
-                      <option value="1">On</option>
-                    </select>
-                  </label>
-                  <label class="field field--span-2">
-                    <span class="field__label">Client Version</span>
-                    <input type="text" name="clientVersion" value="custom-mqtt-observer/1.0.0" form="settings-form">
-                  </label>
+              <div class="mqtt-broker-stack">
+                <p class="settings-intro">Shared model and client version apply to every enabled broker. Each broker pair exposes one primary broker and one optional broker without changing the underlying slot layout.</p>
+                <div class="mqtt-control-strip">
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--compact">
+                  <div class="panel__header panel__header--compact">
+                    <div>
+                      <p class="panel__eyebrow">Shared MQTT</p>
+                      <h3>Applies To All Enabled Brokers</h3>
+                    </div>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field">
+                      <span class="field__label">Model Label</span>
+                      <input type="text" name="model" value="Heltec V3" form="settings-form">
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Client Version</span>
+                      <input type="text" name="clientVersion" value="custom-mqtt-observer/1.0.0" form="settings-form">
+                    </label>
+                  </div>
+                </div>
+
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--compact">
+                  <div class="panel__header panel__header--compact">
+                    <div>
+                      <p class="panel__eyebrow">Broker Count</p>
+                      <h3>Additional MQTT Broker Pairs</h3>
+                    </div>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field">
+                      <span class="field__label">Additional MQTT Servers</span>
+                      <select id="additional-broker-count" name="additionalBrokerCount" form="settings-form">
+                        <option value="0" selected>0</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                      </select>
+                      <span class="field__hint">Broker pair 1 uses slots 1-2. Add up to 2 more pairs, for 3 visible brokers backed by slots 1-6.</span>
+                    </label>
+                  </div>
+                </div>
+                </div>
+
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--pair">
+                  <div class="panel__header panel__header--compact">
+                    <div>
+                      <p class="panel__eyebrow">Broker Pair 1</p>
+                      <h3>Broker 1 With Optional Broker 2</h3>
+                    </div>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 1 URI</span>
+                      <input type="text" name="mqttUri" value="wss://mqtt.ukmesh.com:443/" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 1 Username</span>
+                      <input type="text" name="mqttUsername" value="observer" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 1 Password</span>
+                      <input type="password" name="mqttPassword" value="observer-password" form="settings-form">
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Use MeshCore default topic root</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-broker-1-use-default-topic" type="checkbox" form="settings-form" checked>
+                        <span>Use MeshCore default topic root</span>
+                      </span>
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 1 Topic Root</span>
+                      <input type="text" name="topicRoot" value="meshcore" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 1 IATA</span>
+                      <input type="text" name="iata" value="LHR" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 1 Retain Status</span>
+                      <select name="retainStatus" form="settings-form">
+                        <option value="0">Off</option>
+                        <option value="1">On</option>
+                      </select>
+                    </label>
+                    <label class="field field--span-2" id="mqtt-status-toggle-row-1">
+                      <span class="field__label">Enable optional broker</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-status-broker-1-enabled" type="checkbox" name="mqtt-status-broker-1-enabled" form="settings-form">
+                        <span>Enable optional broker</span>
+                      </span>
+                    </label>
+                  </div>
+                  <p class="mqtt-topic-preview" id="mqtt-broker-1-topic-preview"></p>
+                  <div class="settings-grid mqtt-status-section" id="mqtt-status-broker-1" hidden>
+                    <div class="mqtt-subsection-title">Optional Broker 2</div>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 2 URI</span>
+                      <input type="text" name="mqttBroker2Uri" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 2 Username</span>
+                      <input type="text" name="mqttBroker2Username" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 2 Password</span>
+                      <input type="password" name="mqttBroker2Password" form="settings-form">
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Use MeshCore default topic root</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-broker-2-use-default-topic" type="checkbox" form="settings-form">
+                        <span>Use MeshCore default topic root</span>
+                      </span>
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 2 Topic Root</span>
+                      <input type="text" name="mqttBroker2TopicRoot" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 2 IATA</span>
+                      <input type="text" name="mqttBroker2Iata" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 2 Retain Status</span>
+                      <select name="mqttBroker2RetainStatus" form="settings-form">
+                        <option value="0">Off</option>
+                        <option value="1">On</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p class="mqtt-topic-preview" id="mqtt-broker-2-topic-preview"></p>
+                </div>
+
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--pair" id="mqtt-logical-broker-2-panel" hidden>
+                  <div class="panel__header panel__header--compact">
+                    <div>
+                      <p class="panel__eyebrow">Broker Pair 2</p>
+                      <h3>Broker 3 With Optional Broker 4</h3>
+                    </div>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 3 URI</span>
+                      <input type="text" name="mqttBroker3Uri" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 3 Username</span>
+                      <input type="text" name="mqttBroker3Username" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 3 Password</span>
+                      <input type="password" name="mqttBroker3Password" form="settings-form">
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Use MeshCore default topic root</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-broker-3-use-default-topic" type="checkbox" form="settings-form">
+                        <span>Use MeshCore default topic root</span>
+                      </span>
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 3 Topic Root</span>
+                      <input type="text" name="mqttBroker3TopicRoot" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 3 IATA</span>
+                      <input type="text" name="mqttBroker3Iata" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 3 Retain Status</span>
+                      <select name="mqttBroker3RetainStatus" form="settings-form">
+                        <option value="0">Off</option>
+                        <option value="1">On</option>
+                      </select>
+                    </label>
+                    <label class="field field--span-2" id="mqtt-status-toggle-row-2">
+                      <span class="field__label">Enable optional broker</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-status-broker-2-enabled" type="checkbox" name="mqtt-status-broker-2-enabled" form="settings-form">
+                        <span>Enable optional broker</span>
+                      </span>
+                    </label>
+                  </div>
+                  <p class="mqtt-topic-preview" id="mqtt-broker-3-topic-preview"></p>
+                  <div class="settings-grid mqtt-status-section" id="mqtt-status-broker-2" hidden>
+                    <div class="mqtt-subsection-title">Optional Broker 4</div>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 4 URI</span>
+                      <input type="text" name="mqttBroker4Uri" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 4 Username</span>
+                      <input type="text" name="mqttBroker4Username" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 4 Password</span>
+                      <input type="password" name="mqttBroker4Password" form="settings-form">
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Use MeshCore default topic root</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-broker-4-use-default-topic" type="checkbox" form="settings-form">
+                        <span>Use MeshCore default topic root</span>
+                      </span>
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 4 Topic Root</span>
+                      <input type="text" name="mqttBroker4TopicRoot" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 4 IATA</span>
+                      <input type="text" name="mqttBroker4Iata" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 4 Retain Status</span>
+                      <select name="mqttBroker4RetainStatus" form="settings-form">
+                        <option value="0">Off</option>
+                        <option value="1">On</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p class="mqtt-topic-preview" id="mqtt-broker-4-topic-preview"></p>
+                </div>
+
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--pair" id="mqtt-logical-broker-3-panel" hidden>
+                  <div class="panel__header panel__header--compact">
+                    <div>
+                      <p class="panel__eyebrow">Broker Pair 3</p>
+                      <h3>Broker 5 With Optional Broker 6</h3>
+                    </div>
+                  </div>
+                  <div class="settings-grid">
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 5 URI</span>
+                      <input type="text" name="mqttBroker5Uri" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 5 Username</span>
+                      <input type="text" name="mqttBroker5Username" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 5 Password</span>
+                      <input type="password" name="mqttBroker5Password" form="settings-form">
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Use MeshCore default topic root</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-broker-5-use-default-topic" type="checkbox" form="settings-form">
+                        <span>Use MeshCore default topic root</span>
+                      </span>
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 5 Topic Root</span>
+                      <input type="text" name="mqttBroker5TopicRoot" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 5 IATA</span>
+                      <input type="text" name="mqttBroker5Iata" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 5 Retain Status</span>
+                      <select name="mqttBroker5RetainStatus" form="settings-form">
+                        <option value="0">Off</option>
+                        <option value="1">On</option>
+                      </select>
+                    </label>
+                    <label class="field field--span-2" id="mqtt-status-toggle-row-3">
+                      <span class="field__label">Enable optional broker</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-status-broker-3-enabled" type="checkbox" name="mqtt-status-broker-3-enabled" form="settings-form">
+                        <span>Enable optional broker</span>
+                      </span>
+                    </label>
+                  </div>
+                  <p class="mqtt-topic-preview" id="mqtt-broker-5-topic-preview"></p>
+                  <div class="settings-grid mqtt-status-section" id="mqtt-status-broker-3" hidden>
+                    <div class="mqtt-subsection-title">Optional Broker 6</div>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 6 URI</span>
+                      <input type="text" name="mqttBroker6Uri" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 6 Username</span>
+                      <input type="text" name="mqttBroker6Username" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 6 Password</span>
+                      <input type="password" name="mqttBroker6Password" form="settings-form">
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Use MeshCore default topic root</span>
+                      <span class="mqtt-status-toggle">
+                        <input id="mqtt-broker-6-use-default-topic" type="checkbox" form="settings-form">
+                        <span>Use MeshCore default topic root</span>
+                      </span>
+                    </label>
+                    <label class="field field--span-2">
+                      <span class="field__label">Broker 6 Topic Root</span>
+                      <input type="text" name="mqttBroker6TopicRoot" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 6 IATA</span>
+                      <input type="text" name="mqttBroker6Iata" form="settings-form">
+                    </label>
+                    <label class="field">
+                      <span class="field__label">Broker 6 Retain Status</span>
+                      <select name="mqttBroker6RetainStatus" form="settings-form">
+                        <option value="0">Off</option>
+                        <option value="1">On</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p class="mqtt-topic-preview" id="mqtt-broker-6-topic-preview"></p>
                 </div>
               </div>
               <div class="settings-actions">
-                <p class="settings-actions__note">After flashing, connect USB serial here, then apply the captured or edited device, WiFi, and MQTT settings. MQTT writes now use the single-broker keys such as <code>mqtt.uri</code>, <code>mqtt.username</code>, <code>mqtt.password</code>, and <code>mqtt.topic.root</code>.</p>
-                <div class="action-row settings-actions__row">
+                <p class="settings-actions__note">Connect USB serial here, then apply device, WiFi, and MQTT settings in stages if needed. Broker pairs map directly to firmware slots <code>1-2</code>, <code>3-4</code>, and <code>5-6</code>.</p>
+                <div class="action-row settings-actions__row settings-actions__row--primary">
                   <button class="button button--primary settings-actions__serial" id="serial-button" type="button">Connect Serial</button>
                   <button class="button button--secondary settings-actions__apply" id="settings-apply-device-wifi-button" type="button">Apply Device + WiFi</button>
                   <button class="button button--secondary settings-actions__apply" id="settings-apply-mqtt-button" type="button">Apply MQTT</button>
                   <button class="button button--ghost" id="settings-apply-button" type="button">Apply All Settings</button>
-                  <button class="button button--ghost" id="reconnect-button" type="button">Reconnect MQTT</button>
-                  <button class="button button--ghost" id="verify-button" type="button">Run Verification</button>
                 </div>
               </div>
               </div>
@@ -456,6 +757,21 @@
           <section class="panel panel--compact">
             <div class="panel__header">
               <div>
+                <p class="panel__eyebrow">Browser</p>
+                <h2>Capability Check</h2>
+              </div>
+            </div>
+            <ul class="summary-list">
+              <li><span>Secure Context</span><strong id="cap-secure">Checking</strong></li>
+              <li><span>Web Serial</span><strong id="cap-serial">Checking</strong></li>
+              <li><span>Web Serial Flasher</span><strong id="cap-usb">Checking</strong></li>
+              <li><span>Manifest Source</span><strong id="cap-manifest">Local catalog</strong></li>
+            </ul>
+          </section>
+
+          <section class="panel panel--compact">
+            <div class="panel__header">
+              <div>
                 <p class="panel__eyebrow">Connection</p>
                 <h2>Current State</h2>
               </div>
@@ -483,21 +799,6 @@
           <section class="panel panel--compact">
             <div class="panel__header">
               <div>
-                <p class="panel__eyebrow">Browser</p>
-                <h2>Capability Check</h2>
-              </div>
-            </div>
-            <ul class="summary-list">
-              <li><span>Secure Context</span><strong id="cap-secure">Checking</strong></li>
-              <li><span>Web Serial</span><strong id="cap-serial">Checking</strong></li>
-              <li><span>Web Serial Flasher</span><strong id="cap-usb">Checking</strong></li>
-              <li><span>Manifest Source</span><strong id="cap-manifest">Local catalog</strong></li>
-            </ul>
-          </section>
-
-          <section class="panel panel--compact">
-            <div class="panel__header">
-              <div>
                 <p class="panel__eyebrow">Live Output</p>
                 <h2>Serial Log</h2>
               </div>
@@ -512,7 +813,7 @@
       </main>
     </div>
 
-    <script src="assets/firmware-data.js?v=20260312-0255"></script>
-    <script src="assets/app.js?v=20260312-0255"></script>
+    <script src="assets/firmware-data.js?v=20260312-2250"></script>
+    <script src="assets/app.js?v=20260312-2250"></script>
   </body>
 </html>
