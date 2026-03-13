@@ -4,14 +4,17 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>MeshCore MQTT Web Flasher</title>
-    <link rel="stylesheet" href="assets/styles.css?v=20260312-2250">
+    <link rel="stylesheet" href="assets/styles.css?v=20260313-0145">
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar__brand">
           <p class="eyebrow">UKMesh Utility</p>
-          <h1>MeshCore MQTT Web Flasher</h1>
+          <div class="topbar__title-row">
+            <h1>MeshCore MQTT Web Flasher</h1>
+            <a class="topbar__home-link" href="https://www.ukmesh.com">Home</a>
+          </div>
           <p class="topbar__summary">
             Flash MQTT-ready MeshCore firmware, apply WiFi and broker settings over serial,
             and verify the device status without leaving the page.
@@ -40,9 +43,44 @@
         </div>
       </section>
 
+      <nav class="mode-tabs" id="advanced-tabs" aria-label="Advanced flasher sections" role="tablist" hidden>
+        <button class="mode-tabs__button" data-step-target="read-device" aria-controls="read-device" role="tab" type="button">Backup</button>
+        <button class="mode-tabs__button" data-step-target="choose-board" aria-controls="choose-board" role="tab" type="button">Board</button>
+        <button class="mode-tabs__button" data-step-target="flash-firmware" aria-controls="flash-firmware" role="tab" type="button">Flash</button>
+        <button class="mode-tabs__button" data-step-target="device-settings" aria-controls="device-settings" role="tab" type="button">Device</button>
+        <button class="mode-tabs__button" data-step-target="mqtt-settings" aria-controls="mqtt-settings" role="tab" type="button">MQTT</button>
+        <button class="mode-tabs__button" data-step-target="configure-device" aria-controls="configure-device" role="tab" type="button">Progress</button>
+      </nav>
+
       <main class="workspace">
         <section class="workflow">
           <div class="workflow__content">
+            <section class="panel panel--wide mode-gate" id="mode-gate">
+              <div class="panel__header">
+                <div>
+                  <p class="panel__eyebrow">Start Here</p>
+                  <h2>Choose Flasher Mode</h2>
+                </div>
+                <span class="panel__status panel__status--ready">Required</span>
+              </div>
+              <div class="mode-gate__body">
+                <p>Select the workflow before you begin. You can change it later from the sidebar.</p>
+                <div class="mode-gate__options">
+                  <button class="mode-option mode-option--simple" id="mode-simple-button" type="button">
+                    <span class="mode-option__eyebrow">Simple</span>
+                    <strong>Single-destination setup</strong>
+                    <span>Backup, pick a board, flash, then apply device, WiFi, and one MQTT destination.</span>
+                  </button>
+                  <button class="mode-option mode-option--advanced" id="mode-advanced-button" type="button">
+                    <span class="mode-option__eyebrow">Advanced</span>
+                    <strong>Full workflow tabs</strong>
+                    <span>Use the full flasher with tabbed sections, broker pairs, and the detailed serial workflow.</span>
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <div id="workflow-panels" hidden>
             <section class="panel panel--wide step-panel" id="read-device">
               <div class="panel__header">
                 <div>
@@ -131,19 +169,19 @@
                     </div>
                   </div>
                 </div>
-                <div class="info-card">
+                <div class="info-card advanced-only">
                   <span class="info-card__label">Firmware family</span>
                   <strong id="firmware-family">Loading</strong>
                 </div>
-                <div class="info-card">
+                <div class="info-card advanced-only">
                   <span class="info-card__label">Latest build</span>
                   <strong id="build-label">Loading</strong>
                 </div>
-                <div class="info-card">
+                <div class="info-card advanced-only">
                   <span class="info-card__label">Flash package</span>
                   <strong id="flash-package">Loading</strong>
                 </div>
-                <div class="info-card">
+                <div class="info-card advanced-only">
                   <span class="info-card__label">Hardware check</span>
                   <strong id="hardware-check">Loading</strong>
                 </div>
@@ -188,24 +226,24 @@
                       <option value="CUSTOM">Custom</option>
                     </select>
                   </label>
-                  <label class="field">
+                  <label class="field advanced-only">
                     <span class="field__label">Frequency (MHz)</span>
                     <input type="text" id="radio-frequency" name="radioFrequency" value="869.618">
                   </label>
-                  <label class="field">
+                  <label class="field advanced-only">
                     <span class="field__label">Bandwidth (kHz)</span>
                     <input type="text" id="radio-bandwidth" name="radioBandwidth" value="62.5">
                   </label>
-                  <label class="field">
+                  <label class="field advanced-only">
                     <span class="field__label">Spreading Factor</span>
                     <input type="text" id="radio-sf" name="radioSf" value="8">
                   </label>
-                  <label class="field">
+                  <label class="field advanced-only">
                     <span class="field__label">Coding Rate</span>
                     <input type="text" id="radio-cr" name="radioCr" value="8">
                   </label>
                 </div>
-                <div class="radio-config__command">
+                <div class="radio-config__command advanced-only">
                   <span class="field__label">MeshCore CLI Command</span>
                   <strong id="radio-command">set radio 869.525,62.5,8,5</strong>
                 </div>
@@ -238,8 +276,8 @@
                 <p>Choose the radio profile first, then flash the firmware. The selected radio command is applied afterward in the Configure Device step, followed by a reboot so the radio changes take effect.</p>
                 <p><code>Flash Update Only</code> now mirrors the official MeshCore browser flasher path: bootloader, partitions, <code>boot_app0</code>, and the app image are written without a full chip erase.</p>
                 <p><code>Flash Full Firmware</code> mirrors the official destructive path: one full image written at <code>0x00000</code> with a full chip erase first, so treat it as recovery / first-install only.</p>
-                <p>The preset populates the MeshCore CLI command, but you can edit frequency, bandwidth, SF, and CR manually.</p>
-                <p>The browser handles flashing over Web Serial locally. Firmware binaries are served from this host only.</p>
+                <p class="advanced-only">The preset populates the MeshCore CLI command, but you can edit frequency, bandwidth, SF, and CR manually.</p>
+                <p class="advanced-only">The browser handles flashing over Web Serial locally. Firmware binaries are served from this host only.</p>
               </div>
               </div>
             </section>
@@ -395,9 +433,10 @@
               </div>
               <div class="step-panel__body">
               <div class="mqtt-broker-stack">
-                <p class="settings-intro">Shared model and client version apply to every enabled broker. Each broker pair exposes one primary broker and one optional broker without changing the underlying slot layout.</p>
+                <p class="settings-intro simple-only">Simple mode uses broker 1 only. The new MQTT layout is still applied under the hood when settings are written.</p>
+                <p class="settings-intro advanced-only">Shared model and client version apply to every enabled broker. Each broker pair exposes one primary broker and one optional broker without changing the underlying slot layout.</p>
                 <div class="mqtt-control-strip">
-                <div class="captured-values mqtt-broker-card mqtt-broker-card--compact">
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--compact advanced-only">
                   <div class="panel__header panel__header--compact">
                     <div>
                       <p class="panel__eyebrow">Shared MQTT</p>
@@ -416,7 +455,7 @@
                   </div>
                 </div>
 
-                <div class="captured-values mqtt-broker-card mqtt-broker-card--compact">
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--compact advanced-only">
                   <div class="panel__header panel__header--compact">
                     <div>
                       <p class="panel__eyebrow">Broker Count</p>
@@ -441,7 +480,7 @@
                   <div class="panel__header panel__header--compact">
                     <div>
                       <p class="panel__eyebrow">Broker Pair 1</p>
-                      <h3>Broker 1 With Optional Broker 2</h3>
+                      <h3><span class="simple-only">Broker 1</span><span class="advanced-only">Broker 1 With Optional Broker 2</span></h3>
                     </div>
                   </div>
                   <div class="settings-grid">
@@ -473,13 +512,16 @@
                       <input type="text" name="iata" value="LHR" form="settings-form">
                     </label>
                     <label class="field">
-                      <span class="field__label">Broker 1 Retain Status</span>
+                      <span class="field__label field__label--with-indicator">
+                        <span>Broker 1 Retain Status</span>
+                        <span class="retain-indicator retain-indicator--idle" id="retain-indicator-1">Waiting</span>
+                      </span>
                       <select name="retainStatus" form="settings-form">
                         <option value="0">Off</option>
                         <option value="1">On</option>
                       </select>
                     </label>
-                    <label class="field field--span-2" id="mqtt-status-toggle-row-1">
+                    <label class="field field--span-2 advanced-only" id="mqtt-status-toggle-row-1">
                       <span class="field__label">Enable optional broker</span>
                       <span class="mqtt-status-toggle">
                         <input id="mqtt-status-broker-1-enabled" type="checkbox" name="mqtt-status-broker-1-enabled" form="settings-form">
@@ -488,7 +530,7 @@
                     </label>
                   </div>
                   <p class="mqtt-topic-preview" id="mqtt-broker-1-topic-preview"></p>
-                  <div class="settings-grid mqtt-status-section" id="mqtt-status-broker-1" hidden>
+                  <div class="settings-grid mqtt-status-section advanced-only" id="mqtt-status-broker-1" hidden>
                     <div class="mqtt-subsection-title">Optional Broker 2</div>
                     <label class="field field--span-2">
                       <span class="field__label">Broker 2 URI</span>
@@ -528,7 +570,7 @@
                   <p class="mqtt-topic-preview" id="mqtt-broker-2-topic-preview"></p>
                 </div>
 
-                <div class="captured-values mqtt-broker-card mqtt-broker-card--pair" id="mqtt-logical-broker-2-panel" hidden>
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--pair advanced-only" id="mqtt-logical-broker-2-panel" hidden>
                   <div class="panel__header panel__header--compact">
                     <div>
                       <p class="panel__eyebrow">Broker Pair 2</p>
@@ -564,7 +606,10 @@
                       <input type="text" name="mqttBroker3Iata" form="settings-form">
                     </label>
                     <label class="field">
-                      <span class="field__label">Broker 3 Retain Status</span>
+                      <span class="field__label field__label--with-indicator">
+                        <span>Broker 3 Retain Status</span>
+                        <span class="retain-indicator retain-indicator--idle" id="retain-indicator-3">Waiting</span>
+                      </span>
                       <select name="mqttBroker3RetainStatus" form="settings-form">
                         <option value="0">Off</option>
                         <option value="1">On</option>
@@ -619,7 +664,7 @@
                   <p class="mqtt-topic-preview" id="mqtt-broker-4-topic-preview"></p>
                 </div>
 
-                <div class="captured-values mqtt-broker-card mqtt-broker-card--pair" id="mqtt-logical-broker-3-panel" hidden>
+                <div class="captured-values mqtt-broker-card mqtt-broker-card--pair advanced-only" id="mqtt-logical-broker-3-panel" hidden>
                   <div class="panel__header panel__header--compact">
                     <div>
                       <p class="panel__eyebrow">Broker Pair 3</p>
@@ -655,7 +700,10 @@
                       <input type="text" name="mqttBroker5Iata" form="settings-form">
                     </label>
                     <label class="field">
-                      <span class="field__label">Broker 5 Retain Status</span>
+                      <span class="field__label field__label--with-indicator">
+                        <span>Broker 5 Retain Status</span>
+                        <span class="retain-indicator retain-indicator--idle" id="retain-indicator-5">Waiting</span>
+                      </span>
                       <select name="mqttBroker5RetainStatus" form="settings-form">
                         <option value="0">Off</option>
                         <option value="1">On</option>
@@ -711,7 +759,8 @@
                 </div>
               </div>
               <div class="settings-actions">
-                <p class="settings-actions__note">Connect USB serial here, then apply device, WiFi, and MQTT settings in stages if needed. Broker pairs map directly to firmware slots <code>1-2</code>, <code>3-4</code>, and <code>5-6</code>.</p>
+                <p class="settings-actions__note simple-only">Connect USB serial here, then apply device, WiFi, and the primary MQTT destination.</p>
+                <p class="settings-actions__note advanced-only">Connect USB serial here, then apply device, WiFi, and MQTT settings in stages if needed. Broker pairs map directly to firmware slots <code>1-2</code>, <code>3-4</code>, and <code>5-6</code>.</p>
                 <div class="action-row settings-actions__row settings-actions__row--primary">
                   <button class="button button--primary settings-actions__serial" id="serial-button" type="button">Connect Serial</button>
                   <button class="button button--secondary settings-actions__apply" id="settings-apply-device-wifi-button" type="button">Apply Device + WiFi</button>
@@ -750,6 +799,7 @@
               </div>
               </div>
             </section>
+            </div>
           </div>
         </section>
 
@@ -757,16 +807,27 @@
           <section class="panel panel--compact">
             <div class="panel__header">
               <div>
+                <p class="panel__eyebrow">Workflow</p>
+                <h2>Mode</h2>
+              </div>
+            </div>
+            <div class="mode-switch" id="mode-switch">
+              <button class="mode-switch__button" id="sidebar-mode-simple" type="button">Simple</button>
+              <button class="mode-switch__button" id="sidebar-mode-advanced" type="button">Advanced</button>
+            </div>
+          </section>
+
+          <section class="panel panel--compact">
+            <div class="panel__header">
+              <div>
                 <p class="panel__eyebrow">Browser</p>
                 <h2>Capability Check</h2>
               </div>
             </div>
-            <ul class="summary-list">
-              <li><span>Secure Context</span><strong id="cap-secure">Checking</strong></li>
-              <li><span>Web Serial</span><strong id="cap-serial">Checking</strong></li>
-              <li><span>Web Serial Flasher</span><strong id="cap-usb">Checking</strong></li>
-              <li><span>Manifest Source</span><strong id="cap-manifest">Local catalog</strong></li>
-            </ul>
+            <div class="compatibility-card">
+              <strong id="cap-overall">Checking</strong>
+              <p id="cap-summary">Verifying browser support for HTTPS and Web Serial.</p>
+            </div>
           </section>
 
           <section class="panel panel--compact">
@@ -813,7 +874,7 @@
       </main>
     </div>
 
-    <script src="assets/firmware-data.js?v=20260312-2250"></script>
-    <script src="assets/app.js?v=20260312-2250"></script>
+    <script src="assets/firmware-data.js?v=20260313-0145"></script>
+    <script src="assets/app.js?v=20260313-0145"></script>
   </body>
 </html>

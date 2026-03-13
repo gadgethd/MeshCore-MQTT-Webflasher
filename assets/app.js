@@ -9,6 +9,14 @@ const firmwareFamily = document.getElementById("firmware-family");
 const buildLabel = document.getElementById("build-label");
 const flashPackage = document.getElementById("flash-package");
 const hardwareCheck = document.getElementById("hardware-check");
+const modeGate = document.getElementById("mode-gate");
+const workflowPanels = document.getElementById("workflow-panels");
+const advancedTabs = document.getElementById("advanced-tabs");
+const advancedTabButtons = Array.from(document.querySelectorAll(".mode-tabs__button"));
+const modeSimpleButton = document.getElementById("mode-simple-button");
+const modeAdvancedButton = document.getElementById("mode-advanced-button");
+const sidebarModeSimpleButton = document.getElementById("sidebar-mode-simple");
+const sidebarModeAdvancedButton = document.getElementById("sidebar-mode-advanced");
 const flashState = document.getElementById("flash-state");
 const flashProgressBar = document.getElementById("flash-progress-bar");
 const flashProgressText = document.getElementById("flash-progress-text");
@@ -74,13 +82,20 @@ const mqttStatusBrokerSections = [1, 2, 3].map((index) => document.getElementByI
 const mqttStatusBrokerToggles = [1, 2, 3].map((index) => document.getElementById(`mqtt-status-broker-${index}-enabled`));
 const mqttStatusBrokerToggleRows = [1, 2, 3].map((index) => document.getElementById(`mqtt-status-toggle-row-${index}`));
 const mqttBrokerTopicPreviews = [1, 2, 3, 4, 5, 6].map((index) => document.getElementById(`mqtt-broker-${index}-topic-preview`));
-const capSecure = document.getElementById("cap-secure");
-const capSerial = document.getElementById("cap-serial");
-const capUsb = document.getElementById("cap-usb");
-const capManifest = document.getElementById("cap-manifest");
+const mqttRetainIndicators = [1, 3, 5].reduce((map, index) => {
+  map[index] = document.getElementById(`retain-indicator-${index}`);
+  return map;
+}, {});
+const capOverall = document.getElementById("cap-overall");
+const capSummary = document.getElementById("cap-summary");
 
 const firmwareData = window.FIRMWARE_DATA || { boards: [] };
 const FIRMWARE_FETCH_VERSION = "20260309-2102";
+const UI_MODE_STORAGE_KEY = "meshcore-mqtt-ui-mode";
+const UI_MODES = {
+  SIMPLE: "simple",
+  ADVANCED: "advanced"
+};
 
 let flashComplete = false;
 let serialConnected = false;
@@ -114,6 +129,7 @@ const STEP_ORDER = [
   "configure-device"
 ];
 let activeStepId = "read-device";
+let uiMode = null;
 
 const RADIO_PRESETS = {
   AU_RECOMMENDED: {
@@ -246,6 +262,31 @@ function browserSettingsKey(boardId) {
   return `meshcore-mqtt-step4-settings:${boardId}`;
 }
 
+function normalizeUiMode(value) {
+  return value === UI_MODES.ADVANCED ? UI_MODES.ADVANCED : value === UI_MODES.SIMPLE ? UI_MODES.SIMPLE : null;
+}
+
+function loadUiMode() {
+  try {
+    return normalizeUiMode(window.localStorage.getItem(UI_MODE_STORAGE_KEY));
+  } catch (error) {
+    appendLog(`Browser storage warning: ${error.message}`);
+    return null;
+  }
+}
+
+function saveUiMode(mode) {
+  try {
+    if (!mode) {
+      window.localStorage.removeItem(UI_MODE_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(UI_MODE_STORAGE_KEY, mode);
+  } catch (error) {
+    appendLog(`Browser storage warning: ${error.message}`);
+  }
+}
+
 function maskPrivateKeyValue(value) {
   if (!value) return "Not captured";
   if (value.length <= 16) return "********";
@@ -300,7 +341,10 @@ function isStatusSlot(slotIndex) {
   return slotIndex % 2 === 0;
 }
 
-function activeLogicalBrokerCount(formData) {
+function activeLogicalBrokerCount(formData, mode = uiMode) {
+  if (mode === UI_MODES.SIMPLE) {
+    return 1;
+  }
   return sanitizeAdditionalBrokerCount(formData.get("additionalBrokerCount")) + 1;
 }
 
@@ -322,7 +366,10 @@ function logicalBrokerRetainStatus(formData, logicalIndex) {
   return String(formData.get(brokerFormFieldName(mainSlot, "retainStatus")) || "0").trim();
 }
 
-function canEnableCustomBroker(formData, logicalIndex) {
+function canEnableCustomBroker(formData, logicalIndex, mode = uiMode) {
+  if (mode !== UI_MODES.ADVANCED) {
+    return false;
+  }
   return logicalBrokerRetainStatus(formData, logicalIndex) !== "1";
 }
 
@@ -383,11 +430,25 @@ function normalizeBrokerRecord(index, broker = {}) {
   };
 }
 
-function readBrokerSettings(formData, index) {
+function readBrokerSettings(formData, index, { respectMode = true } = {}) {
+  const effectiveMode = respectMode ? uiMode : UI_MODES.ADVANCED;
+  if (effectiveMode === UI_MODES.SIMPLE && index > 1) {
+    return normalizeBrokerRecord(index, {
+      enabled: false,
+      uri: formData.get(brokerFormFieldName(index, "uri")),
+      username: formData.get(brokerFormFieldName(index, "username")),
+      password: formData.get(brokerFormFieldName(index, "password")),
+      topicRoot: getBrokerDefaultTopicToggle(index)?.checked
+        ? "meshcore"
+        : formData.get(brokerFormFieldName(index, "topicRoot")),
+      iata: formData.get(brokerFormFieldName(index, "iata")),
+      retainStatus: formData.get(brokerFormFieldName(index, "retainStatus"))
+    });
+  }
   const logicalIndex = slotLogicalIndex(index);
-  const logicalBrokerVisible = logicalIndex <= activeLogicalBrokerCount(formData);
+  const logicalBrokerVisible = logicalIndex <= activeLogicalBrokerCount(formData, effectiveMode);
   const enabled = isStatusSlot(index)
-    ? logicalBrokerVisible && canEnableCustomBroker(formData, logicalIndex) && isStatusBrokerEnabled(formData, logicalIndex)
+    ? logicalBrokerVisible && canEnableCustomBroker(formData, logicalIndex, effectiveMode) && isStatusBrokerEnabled(formData, logicalIndex)
     : logicalBrokerVisible;
   const topicRoot = getBrokerDefaultTopicToggle(index)?.checked
     ? "meshcore"
@@ -442,12 +503,13 @@ function updateAdditionalBrokerVisibility() {
   const count = sanitizeAdditionalBrokerCount(additionalBrokerCountInput?.value || 0);
   const formData = new FormData(settingsForm);
   mqttLogicalBrokerPanels.forEach((panel, offset) => {
-    setHiddenState(panel, offset >= count);
+    const shouldHide = uiMode !== UI_MODES.ADVANCED || offset >= count;
+    setHiddenState(panel, shouldHide);
   });
   mqttStatusBrokerSections.forEach((section, offset) => {
     const logicalIndex = offset + 1;
     const logicalVisible = logicalIndex <= count + 1;
-    const customAllowed = logicalVisible && canEnableCustomBroker(formData, logicalIndex);
+    const customAllowed = uiMode === UI_MODES.ADVANCED && logicalVisible && canEnableCustomBroker(formData, logicalIndex);
     const toggle = mqttStatusBrokerToggles[offset];
     const row = mqttStatusBrokerToggleRows[offset];
 
@@ -465,6 +527,9 @@ function updateAdditionalBrokerVisibility() {
 
 function buildBrokerStatusTopicPreview(index) {
   const broker = readBrokerSettings(new FormData(settingsForm), index);
+  if (uiMode === UI_MODES.SIMPLE && index > 1) {
+    return "";
+  }
   if (index > 1 && !broker.enabled) {
     return "";
   }
@@ -479,6 +544,13 @@ function buildBrokerStatusTopicPreview(index) {
       return `Default topics: ${topicRoot}/${iata}/<PUBLIC_KEY>/status and ${packetsTopic}`;
     }
     return `Default topic: ${packetsTopic}`;
+  }
+  if (String(broker.retainStatus || "0") === "1") {
+    const statusTopic = deriveStatusTopic(topicRoot);
+    if (statusTopic) {
+      return `Custom topics: ${statusTopic} and ${topicRoot}`;
+    }
+    return `Custom topic root: ${topicRoot} (retain needs a /packets topic)`;
   }
   return `Custom topic root: ${topicRoot}`;
 }
@@ -496,6 +568,52 @@ function updateBrokerTopicPreviews() {
     const text = buildBrokerStatusTopicPreview(brokerIndex);
     preview.textContent = text;
     setHiddenState(preview, !text);
+  });
+  updateRetainIndicators();
+}
+
+function deriveStatusTopic(topicRoot) {
+  const normalized = String(topicRoot || "").trim().replace(/\/+$/, "");
+  if (!normalized) return "";
+  if (!/\/packets$/i.test(normalized)) {
+    return "";
+  }
+  return normalized.replace(/\/packets$/i, "/status");
+}
+
+function setRetainIndicatorState(target, text, className) {
+  if (!target) return;
+  target.textContent = text;
+  target.className = `retain-indicator ${className}`;
+}
+
+function updateRetainIndicators() {
+  [1, 3, 5].forEach((index) => {
+    const target = mqttRetainIndicators[index];
+    if (!target) return;
+
+    if (uiMode === UI_MODES.SIMPLE && index !== 1) {
+      target.textContent = "";
+      return;
+    }
+
+    const broker = readBrokerSettings(new FormData(settingsForm), index);
+    if (String(broker.retainStatus || "0") !== "1") {
+      setRetainIndicatorState(target, "Off", "retain-indicator--idle");
+      return;
+    }
+
+    if (getBrokerDefaultTopicToggle(index)?.checked) {
+      setRetainIndicatorState(target, "Possible", "retain-indicator--ok");
+      return;
+    }
+
+    if (deriveStatusTopic(broker.topicRoot)) {
+      setRetainIndicatorState(target, "Possible", "retain-indicator--ok");
+      return;
+    }
+
+    setRetainIndicatorState(target, "Needs /packets", "retain-indicator--error");
   });
 }
 
@@ -556,12 +674,70 @@ function syncAllBrokerDefaultTopicTogglesFromValues() {
   }
 }
 
+function updateModeButtons() {
+  const simpleSelected = uiMode === UI_MODES.SIMPLE;
+  const advancedSelected = uiMode === UI_MODES.ADVANCED;
+  [modeSimpleButton, sidebarModeSimpleButton].forEach((button) => {
+    if (!button) return;
+    button.classList.toggle("is-selected", simpleSelected);
+    button.setAttribute("aria-pressed", simpleSelected ? "true" : "false");
+  });
+  [modeAdvancedButton, sidebarModeAdvancedButton].forEach((button) => {
+    if (!button) return;
+    button.classList.toggle("is-selected", advancedSelected);
+    button.setAttribute("aria-pressed", advancedSelected ? "true" : "false");
+  });
+}
+
+function updateAdvancedTabs() {
+  if (!advancedTabs) return;
+  const showTabs = Boolean(uiMode);
+  advancedTabs.hidden = !showTabs;
+  advancedTabButtons.forEach((button) => {
+    const isActive = button.dataset.stepTarget === activeStepId;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+    button.tabIndex = isActive ? 0 : -1;
+  });
+}
+
+function updateWorkflowModeUi() {
+  document.body.classList.toggle("mode-simple", uiMode === UI_MODES.SIMPLE);
+  document.body.classList.toggle("mode-advanced", uiMode === UI_MODES.ADVANCED);
+  document.body.classList.toggle("mode-unset", !uiMode);
+  if (modeGate) {
+    modeGate.hidden = true;
+  }
+  if (workflowPanels) {
+    workflowPanels.hidden = !uiMode;
+  }
+  updateModeButtons();
+  updateAdvancedTabs();
+  updateAdditionalBrokerVisibility();
+  updateBrokerTopicPreviews();
+}
+
+function setUiMode(mode, { persist = true } = {}) {
+  const normalized = normalizeUiMode(mode);
+  uiMode = normalized;
+  if (persist) {
+    saveUiMode(normalized);
+  }
+  if (uiMode === UI_MODES.SIMPLE) {
+    activeStepId = null;
+  }
+  updateWorkflowModeUi();
+  syncActiveStep(uiMode ? recommendedStepId() : null, { force: true });
+  buildCommandPreview();
+}
+
 function getStepIndex(stepId) {
   const index = STEP_ORDER.indexOf(stepId);
   return index >= 0 ? index : 0;
 }
 
 function setActiveStep(stepId) {
+  if (uiMode && stepId === null) return;
   if (stepId !== null && !STEP_ORDER.includes(stepId)) return;
   activeStepId = stepId;
   stepPanels.forEach((panel) => {
@@ -573,9 +749,11 @@ function setActiveStep(stepId) {
       header.setAttribute("aria-expanded", isActive ? "true" : "false");
     }
   });
+  updateAdvancedTabs();
 }
 
 function recommendedStepId() {
+  if (!uiMode) return null;
   if (!capturedDeviceInfo) return "read-device";
   if (!currentBoard || !boardSelectionConfirmed) return "choose-board";
   if (!flashComplete) return "flash-firmware";
@@ -586,6 +764,10 @@ function recommendedStepId() {
 }
 
 function syncActiveStep(preferredStepId = null, { force = false } = {}) {
+  if (!uiMode) {
+    setActiveStep(null);
+    return;
+  }
   const nextStepId = preferredStepId || recommendedStepId();
   if (force || !activeStepId || getStepIndex(nextStepId) >= getStepIndex(activeStepId)) {
     setActiveStep(nextStepId);
@@ -685,7 +867,7 @@ function loadCapturedDeviceInfo(boardId) {
 
 function readStep4SettingsFromForm() {
   const formData = new FormData(settingsForm);
-  const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1));
+  const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1, { respectMode: false }));
   return {
     repeaterName: String(formData.get("repeaterName") || ""),
     privateKey: String(formData.get("privateKey") || ""),
@@ -966,7 +1148,6 @@ function setBoardDetails(board, { userSelected = false } = {}) {
   hardwareCheck.textContent = board.hardwareStatus;
   artifactFullName.textContent = board.artifacts.full;
   artifactUpdateName.textContent = board.artifacts.update || board.artifacts.full;
-  capManifest.textContent = board.manifestPath ? "Board manifest" : "Catalog fallback";
   capturedDeviceInfo = loadCapturedDeviceInfo(board.id);
   savedStep4Settings = loadStep4Settings(board.id);
   renderCapturedDeviceInfo(capturedDeviceInfo);
@@ -1057,17 +1238,19 @@ function renderBoardOptions() {
   });
 }
 
-function capabilityLabel(supported) {
-  return supported ? "Available" : "Unavailable";
-}
-
 function evaluateCapabilities() {
   const secureContext = window.isSecureContext || location.hostname === "127.0.0.1" || location.hostname === "localhost";
   const webSerialAvailable = "serial" in navigator;
+  const compatible = secureContext && webSerialAvailable;
 
-  capSecure.textContent = capabilityLabel(secureContext);
-  capSerial.textContent = capabilityLabel(webSerialAvailable);
-  capUsb.textContent = capabilityLabel(secureContext && webSerialAvailable);
+  if (capOverall) {
+    capOverall.textContent = compatible ? "Compatible" : "Not compatible";
+  }
+  if (capSummary) {
+    capSummary.textContent = compatible
+      ? "This browser can use the MeshCore Web Serial flasher."
+      : "This browser needs HTTPS and Web Serial support before flashing will work.";
+  }
 
   if (!secureContext) {
     appendLog("Browser check: flashing needs HTTPS or localhost.");
@@ -2385,18 +2568,20 @@ document.addEventListener("keydown", (event) => {
 stepPanels.forEach((panel) => {
   const header = panel.querySelector(".panel__header");
   if (!header) return;
-  header.setAttribute("role", "button");
-  header.setAttribute("tabindex", "0");
-  header.addEventListener("click", () => {
-    setActiveStep(activeStepId === panel.id ? null : panel.id);
-  });
-  header.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      setActiveStep(activeStepId === panel.id ? null : panel.id);
-    }
+  header.removeAttribute("role");
+  header.removeAttribute("tabindex");
+});
+
+advancedTabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setActiveStep(button.dataset.stepTarget);
   });
 });
+
+modeSimpleButton?.addEventListener("click", () => setUiMode(UI_MODES.SIMPLE));
+modeAdvancedButton?.addEventListener("click", () => setUiMode(UI_MODES.ADVANCED));
+sidebarModeSimpleButton?.addEventListener("click", () => setUiMode(UI_MODES.SIMPLE));
+sidebarModeAdvancedButton?.addEventListener("click", () => setUiMode(UI_MODES.ADVANCED));
 
 Array.from(document.querySelectorAll("#settings-form input, #settings-form select, [form='settings-form']")).forEach((input) => {
   input.addEventListener("input", () => {
@@ -2706,11 +2891,11 @@ clearLogButton.addEventListener("click", () => {
 populateBoards();
 evaluateCapabilities();
 applyRadioPreset("EU_UK_RECOMMENDED");
+setUiMode(UI_MODES.SIMPLE);
 updateAdditionalBrokerVisibility();
 updateBrokerTopicPreviews();
 buildCommandPreview();
 updateSerialButton();
 updateBackupExportAvailability();
-syncActiveStep(capturedDeviceInfo ? "choose-board" : "read-device", { force: true });
 closeBoardMenu();
 appendLog(`Loaded ${firmwareData.boards.length} board definitions.`);
