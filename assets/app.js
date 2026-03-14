@@ -417,6 +417,25 @@ function getBrokerDefaultTopicToggle(index) {
   return document.getElementById(brokerDefaultTopicToggleId(index));
 }
 
+function currentTopicPublicKey({ allowPlaceholder = true } = {}) {
+  const value = String(capturedDeviceInfo?.publicKey || "").trim();
+  if (value) {
+    return value;
+  }
+  return allowPlaceholder ? "<PUBLIC_KEY>" : "";
+}
+
+function buildDefaultPacketsTopic(iata, publicKey = currentTopicPublicKey()) {
+  const resolvedIata = String(iata || "").trim() || "<IATA>";
+  const resolvedPublicKey = String(publicKey || "").trim() || "<PUBLIC_KEY>";
+  return `meshcore/${resolvedIata}/${resolvedPublicKey}/packets`;
+}
+
+function isMeshCoreDefaultTopicRoot(value) {
+  const normalized = String(value || "").trim().replace(/\/+$/, "");
+  return /^meshcore\/[^/]+\/[^/]+\/packets$/i.test(normalized);
+}
+
 function normalizeBrokerRecord(index, broker = {}) {
   return {
     index,
@@ -430,7 +449,7 @@ function normalizeBrokerRecord(index, broker = {}) {
   };
 }
 
-function readBrokerSettings(formData, index, { respectMode = true } = {}) {
+function readRawBrokerSettings(formData, index, { respectMode = true } = {}) {
   const effectiveMode = respectMode ? uiMode : UI_MODES.ADVANCED;
   if (effectiveMode === UI_MODES.SIMPLE && index > 1) {
     return normalizeBrokerRecord(index, {
@@ -439,7 +458,7 @@ function readBrokerSettings(formData, index, { respectMode = true } = {}) {
       username: formData.get(brokerFormFieldName(index, "username")),
       password: formData.get(brokerFormFieldName(index, "password")),
       topicRoot: getBrokerDefaultTopicToggle(index)?.checked
-        ? "meshcore"
+        ? buildDefaultPacketsTopic(formData.get(brokerFormFieldName(index, "iata")))
         : formData.get(brokerFormFieldName(index, "topicRoot")),
       iata: formData.get(brokerFormFieldName(index, "iata")),
       retainStatus: formData.get(brokerFormFieldName(index, "retainStatus"))
@@ -451,7 +470,7 @@ function readBrokerSettings(formData, index, { respectMode = true } = {}) {
     ? logicalBrokerVisible && canEnableCustomBroker(formData, logicalIndex, effectiveMode) && isStatusBrokerEnabled(formData, logicalIndex)
     : logicalBrokerVisible;
   const topicRoot = getBrokerDefaultTopicToggle(index)?.checked
-    ? "meshcore"
+    ? buildDefaultPacketsTopic(formData.get(brokerFormFieldName(index, "iata")))
     : formData.get(brokerFormFieldName(index, "topicRoot"));
   return normalizeBrokerRecord(index, {
     enabled,
@@ -462,6 +481,35 @@ function readBrokerSettings(formData, index, { respectMode = true } = {}) {
     iata: formData.get(brokerFormFieldName(index, "iata")),
     retainStatus: formData.get(brokerFormFieldName(index, "retainStatus"))
   });
+}
+
+function shouldAutoStatusBroker(formData, index, mode = uiMode) {
+  if (!isStatusSlot(index)) return false;
+  const logicalIndex = slotLogicalIndex(index);
+  const logicalBrokerVisible = logicalIndex <= activeLogicalBrokerCount(formData, mode);
+  return logicalBrokerVisible && logicalBrokerRetainStatus(formData, logicalIndex) === "1";
+}
+
+function buildAutoStatusBroker(formData, index, mode = uiMode) {
+  const mainBroker = readRawBrokerSettings(formData, index - 1, { respectMode: mode !== UI_MODES.ADVANCED });
+  const statusTopicRoot = deriveStatusTopic(mainBroker.topicRoot);
+  return normalizeBrokerRecord(index, {
+    enabled: Boolean(mainBroker.enabled && statusTopicRoot),
+    uri: mainBroker.uri,
+    username: mainBroker.username,
+    password: mainBroker.password,
+    topicRoot: statusTopicRoot,
+    iata: mainBroker.iata,
+    retainStatus: "0"
+  });
+}
+
+function readBrokerSettings(formData, index, { respectMode = true } = {}) {
+  const effectiveMode = respectMode ? uiMode : UI_MODES.ADVANCED;
+  if (shouldAutoStatusBroker(formData, index, effectiveMode)) {
+    return buildAutoStatusBroker(formData, index, effectiveMode);
+  }
+  return readRawBrokerSettings(formData, index, { respectMode });
 }
 
 function readAdditionalBrokerSettings(formData) {
@@ -538,10 +586,9 @@ function buildBrokerStatusTopicPreview(index) {
     return "";
   }
   if (getBrokerDefaultTopicToggle(index)?.checked) {
-    const iata = broker.iata || "<IATA>";
-    const packetsTopic = `${topicRoot}/${iata}/<PUBLIC_KEY>/packets`;
+    const packetsTopic = topicRoot;
     if (String(broker.retainStatus || "0") === "1") {
-      return `Default topics: ${topicRoot}/${iata}/<PUBLIC_KEY>/status and ${packetsTopic}`;
+      return `Default topics: ${deriveStatusTopic(packetsTopic)} and ${packetsTopic}`;
     }
     return `Default topic: ${packetsTopic}`;
   }
@@ -640,16 +687,17 @@ function syncBrokerTopicMode(index) {
 
   if (toggle.checked) {
     const currentValue = String(topicRootInput.value || "").trim();
-    if (currentValue && currentValue.toLowerCase() !== "meshcore") {
+    if (currentValue && !isMeshCoreDefaultTopicRoot(currentValue)) {
       topicRootInput.dataset.customTopicRoot = currentValue;
     }
-    topicRootInput.value = "meshcore";
+    const iataInput = getBrokerFieldInput(index, "iata");
+    topicRootInput.value = buildDefaultPacketsTopic(iataInput?.value);
     topicRootInput.disabled = true;
     return;
   }
 
   topicRootInput.disabled = false;
-  if (String(topicRootInput.value || "").trim().toLowerCase() === "meshcore" && topicRootInput.dataset.customTopicRoot) {
+  if (isMeshCoreDefaultTopicRoot(topicRootInput.value) && topicRootInput.dataset.customTopicRoot) {
     topicRootInput.value = topicRootInput.dataset.customTopicRoot;
   }
 }
@@ -664,7 +712,7 @@ function syncBrokerDefaultTopicToggleFromValue(index) {
   const topicRootInput = getBrokerTopicRootInput(index);
   const toggle = getBrokerDefaultTopicToggle(index);
   if (!topicRootInput || !toggle) return;
-  toggle.checked = String(topicRootInput.value || "").trim().toLowerCase() === "meshcore";
+  toggle.checked = isMeshCoreDefaultTopicRoot(topicRootInput.value);
   syncBrokerTopicMode(index);
 }
 
@@ -1041,6 +1089,7 @@ function buildBackupFileContents() {
   if (captured) {
     lines.push(`Captured At: ${captured.capturedAt || ""}`);
     lines.push(`Name: ${captured.name || ""}`);
+    lines.push(`Public Key: ${captured.publicKey || ""}`);
     lines.push(`Latitude: ${captured.lat || ""}`);
     lines.push(`Longitude: ${captured.lon || ""}`);
     lines.push(`Private Key: ${captured.privateKey || ""}`);
@@ -1459,6 +1508,24 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
   }
 
   const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1));
+  const currentPublicKey = currentTopicPublicKey({ allowPlaceholder: false });
+  const capturedPrivateKey = String(capturedDeviceInfo?.privateKey || "").trim();
+  const enabledDefaultTopicBrokers = brokers.filter((broker) => broker.enabled && getBrokerDefaultTopicToggle(broker.index)?.checked);
+  if (enabledDefaultTopicBrokers.length > 0 && !currentPublicKey) {
+    throw new Error("Read Current Device Info first so the flasher can build the full default MQTT topic path");
+  }
+  if (enabledDefaultTopicBrokers.length > 0 && privateKey && privateKey !== capturedPrivateKey) {
+    throw new Error("Apply the private key first, then read the device info again before using the default MQTT topic path");
+  }
+  [1, 3, 5].forEach((index) => {
+    const broker = brokers[index - 1];
+    if (!broker?.enabled || String(broker.retainStatus || "0") !== "1") {
+      return;
+    }
+    if (!deriveStatusTopic(broker.topicRoot)) {
+      throw new Error(`Broker ${index} retain status needs a topic root ending in /packets`);
+    }
+  });
   const enabledBrokers = brokers.filter((broker) => broker.enabled);
   if (requireMqtt && !brokers[0].uri) {
     throw new Error("Primary MQTT URI is required");
@@ -2211,6 +2278,7 @@ async function captureCurrentDeviceInfo() {
     setPanelState(deviceReadState, "Reading", "panel__status--busy");
 
     const nameResult = await readOptionalSettingValue("name");
+    const publicKeyResult = await readOptionalSettingValue("public.key");
     const latResult = await readOptionalSettingValue("lat");
     const lonResult = await readOptionalSettingValue("lon");
     const privateKeyResult = await readOptionalSettingValue("prv.key");
@@ -2271,6 +2339,7 @@ async function captureCurrentDeviceInfo() {
 
     const info = {
       name: nameResult.value,
+      publicKey: publicKeyResult.value,
       lat: latResult.value,
       lon: lonResult.value,
       privateKey: privateKeyResult.value,
