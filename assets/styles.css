@@ -201,6 +201,10 @@ select {
   color: #eef7ff;
 }
 
+.mode-tabs__serial {
+  margin-left: auto;
+}
+
 .meta-pill,
 .state-chip,
 .info-card {

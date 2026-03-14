@@ -62,10 +62,12 @@ const summaryMqtt = document.getElementById("summary-mqtt");
 const flashButton = document.getElementById("flash-button");
 const updateButton = document.getElementById("update-button");
 const manifestButton = document.getElementById("manifest-button");
-const serialButton = document.getElementById("serial-button");
+const serialButton = document.getElementById("serial-button") || null;
+const navSerialButton = document.getElementById("nav-serial-button");
+const navActionButton = document.getElementById("nav-action-button");
 const settingsApplyDeviceWifiButton = document.getElementById("settings-apply-device-wifi-button");
 const settingsApplyMqttButton = document.getElementById("settings-apply-mqtt-button");
-const settingsApplyButton = document.getElementById("settings-apply-button");
+const settingsApplyButton = document.getElementById("settings-apply-button") || null;
 const configureButton = document.getElementById("configure-button");
 const clearLogButton = document.getElementById("clear-log-button");
 const settingsForm = document.getElementById("settings-form");
@@ -586,9 +588,10 @@ function buildBrokerStatusTopicPreview(index) {
     return "";
   }
   if (getBrokerDefaultTopicToggle(index)?.checked) {
-    const packetsTopic = topicRoot;
+    // Always show the template with placeholders, ignore whatever is in the input
+    const packetsTopic = `meshcore/{IATA}/{PUBLIC_KEY}/packets`;
     if (String(broker.retainStatus || "0") === "1") {
-      return `Default topics: ${deriveStatusTopic(packetsTopic)} and ${packetsTopic}`;
+      return `Default topics: ${packetsTopic}/status and ${packetsTopic}`;
     }
     return `Default topic: ${packetsTopic}`;
   }
@@ -754,7 +757,8 @@ function updateWorkflowModeUi() {
   document.body.classList.toggle("mode-advanced", uiMode === UI_MODES.ADVANCED);
   document.body.classList.toggle("mode-unset", !uiMode);
   if (modeGate) {
-    modeGate.hidden = true;
+    // Show mode gate only when no mode is selected
+    modeGate.hidden = !!uiMode;
   }
   if (workflowPanels) {
     workflowPanels.hidden = !uiMode;
@@ -798,6 +802,7 @@ function setActiveStep(stepId) {
     }
   });
   updateAdvancedTabs();
+  updateNavActionButton();
 }
 
 function recommendedStepId() {
@@ -949,6 +954,23 @@ function loadStep4Settings(boardId) {
     appendLog(`Browser storage warning: ${error.message}`);
     return null;
   }
+}
+
+function resetSettingsFormForBoard() {
+  if (!settingsForm) return;
+
+  settingsForm.reset();
+
+  for (let index = 1; index <= MQTT_MAX_BROKERS; index += 1) {
+    const topicRootInput = getBrokerTopicRootInput(index);
+    if (topicRootInput?.dataset) {
+      delete topicRootInput.dataset.customTopicRoot;
+    }
+  }
+
+  syncAllBrokerDefaultTopicTogglesFromValues();
+  updateAdditionalBrokerVisibility();
+  updateBrokerTopicPreviews();
 }
 
 function applySavedStep4SettingsToForm(settings) {
@@ -1199,6 +1221,7 @@ function setBoardDetails(board, { userSelected = false } = {}) {
   artifactUpdateName.textContent = board.artifacts.update || board.artifacts.full;
   capturedDeviceInfo = loadCapturedDeviceInfo(board.id);
   savedStep4Settings = loadStep4Settings(board.id);
+  resetSettingsFormForBoard();
   renderCapturedDeviceInfo(capturedDeviceInfo);
   if (capturedDeviceInfo) {
     applyCapturedDeviceInfoToForm(capturedDeviceInfo);
@@ -1280,7 +1303,7 @@ function renderBoardOptions() {
       boardSelect.value = board.id;
       setBoardDetails(board, { userSelected: true });
       appendLog(`Board selected: ${board.label}`);
-      syncActiveStep("flash-firmware", { force: true });
+      // Don't auto-switch tabs - let user navigate manually
       closeBoardMenu();
     });
     boardOptions.appendChild(option);
@@ -1310,11 +1333,22 @@ function evaluateCapabilities() {
 }
 
 function updateSerialButton() {
-  if (serialConnected) {
-    serialButton.textContent = "Disconnect Serial";
-    return;
+  const text = serialConnected ? "Connected" : "Connect Serial";
+  if (serialButton) serialButton.textContent = text;
+  if (navSerialButton) navSerialButton.textContent = text;
+}
+
+function updateNavActionButton() {
+  if (!navActionButton) return;
+
+  // Only show on MQTT step, applies all settings (device + wifi + mqtt)
+  if (activeStepId === "mqtt-settings") {
+    navActionButton.textContent = "Apply All Settings";
+    navActionButton.hidden = false;
+    navActionButton.dataset.action = "all";
+  } else {
+    navActionButton.hidden = true;
   }
-  serialButton.textContent = "Connect Serial";
 }
 
 function notifyLineListeners(line) {
@@ -1866,7 +1900,7 @@ async function connectSerial() {
   setText(summarySerial, "Connected at 115200");
   setCommandState(0, "is-done", "Connected");
   appendLog("Serial console is ready.");
-  syncActiveStep("mqtt-settings", { force: true });
+  // Don't auto-switch tabs - let user navigate manually
 }
 
 function buildCommandPreview() {
@@ -2065,6 +2099,56 @@ async function readOptionalSettingValue(key, timeoutMs = 6000) {
   } catch (error) {
     appendLog(`Readback warning for ${key}: ${error.message}`);
     return { line: "", value: "" };
+  }
+}
+
+function isSerialSignalFailure(error) {
+  const message = String(error?.message || error || "");
+  return /setSignals/i.test(message) || /control signals/i.test(message);
+}
+
+async function connectBootloaderWithFallback({
+  ESPLoader,
+  HardReset,
+  Transport,
+  port,
+  flashOptions,
+  boardLabel
+}) {
+  let transport = new Transport(port, true);
+  let loader = new ESPLoader({
+    ...flashOptions,
+    transport
+  });
+  loader.hr = new HardReset(transport);
+
+  try {
+    const chip = await loader.main();
+    return { chip, loader, transport };
+  } catch (error) {
+    if (!isSerialSignalFailure(error)) {
+      throw error;
+    }
+
+    appendLog("Automatic bootloader entry failed because the browser could not toggle serial control lines.");
+    appendLog(`Manual bootloader fallback: hold BOOT on ${boardLabel}, tap RESET, keep BOOT held for 2 seconds, then release.`);
+
+    try {
+      await releaseFlashSession(transport, null);
+    } catch (releaseError) {
+      appendLog(`Flash reconnect warning: ${releaseError.message}`);
+    }
+
+    await delay(2500);
+
+    transport = new Transport(port, true);
+    loader = new ESPLoader({
+      ...flashOptions,
+      transport
+    });
+    loader.hr = new HardReset(transport);
+    const chip = await loader.main("no_reset");
+    return { chip, loader, transport };
   }
 }
 
@@ -2368,7 +2452,7 @@ async function captureCurrentDeviceInfo() {
     buildCommandPreview();
     setPanelState(deviceReadState, "Captured", "panel__status--success");
     appendLog("Captured current device info and stored it in this browser for this board.");
-    syncActiveStep("choose-board", { force: true });
+    // Don't auto-switch tabs - let user navigate manually
   } finally {
     if (openedHere) {
       await disconnectSerialSession({ silent: true });
@@ -2522,7 +2606,6 @@ async function flashFirmware(kind) {
 
     setFlashProgress(16, "Connecting to bootloader");
     appendLog("Connecting to bootloader.");
-    transport = new Transport(port, true);
     flashArtifacts = await buildFlashArtifacts(currentBoard, kind);
     appendLog(
       kind === "update"
@@ -2533,7 +2616,6 @@ async function flashFirmware(kind) {
     const flashOptions = {
       debugLogging: false,
       terminal: createFlashTerminal(),
-      transport,
       baudrate: 115200,
       romBaudrate: 115200,
       flashSize: "keep",
@@ -2552,10 +2634,16 @@ async function flashFirmware(kind) {
       }
     };
 
-    const loader = new ESPLoader(flashOptions);
-    loader.hr = new HardReset(transport);
-
-    const chip = await loader.main();
+    const connection = await connectBootloaderWithFallback({
+      ESPLoader,
+      HardReset,
+      Transport,
+      port,
+      flashOptions,
+      boardLabel: currentBoard.label
+    });
+    const { chip, loader } = connection;
+    transport = connection.transport;
     appendLog(`Bootloader connected: ${chip || currentBoard.chipFamily}`);
     setFlashProgress(kind === "full" ? 26 : 24, kind === "full" ? "Erasing and writing full image" : "Starting flash");
     appendLog("Reading flash identity.");
@@ -2586,7 +2674,7 @@ async function flashFirmware(kind) {
     setPanelState(verifyState, "Waiting", "panel__status--idle");
     updateSerialButton();
     appendLog(`Flash completed successfully for ${currentBoard.label}. Reconnect serial, then apply the selected device, WiFi, and MQTT settings.`);
-    syncActiveStep("device-settings", { force: true });
+    // Don't auto-switch tabs - let user navigate manually
   } finally {
     flashingNow = false;
     flashButton.disabled = !currentBoard?.artifactBase;
@@ -2607,7 +2695,7 @@ boardSelect.addEventListener("change", () => {
   const board = firmwareData.boards.find((item) => item.id === boardSelect.value);
   setBoardDetails(board, { userSelected: true });
   appendLog(`Board selected: ${board ? board.label : boardSelect.value}`);
-  syncActiveStep("flash-firmware", { force: true });
+  // Don't auto-switch tabs - let user navigate manually
 });
 
 boardTrigger.addEventListener("click", () => {
@@ -2792,12 +2880,45 @@ manifestButton.addEventListener("click", () => {
   appendLog("Manifest is not published for this board yet.");
 });
 
-serialButton.addEventListener("click", async () => {
+serialButton?.addEventListener("click", async () => {
   try {
     await connectSerial();
   } catch (error) {
     setPanelState(serialState, "Serial error", "panel__status--error");
     appendLog(`Serial error: ${error.message}`);
+  }
+});
+
+navSerialButton?.addEventListener("click", async () => {
+  try {
+    await connectSerial();
+  } catch (error) {
+    setPanelState(serialState, "Serial error", "panel__status--error");
+    appendLog(`Serial error: ${error.message}`);
+  }
+});
+
+navActionButton?.addEventListener("click", async () => {
+  const action = navActionButton?.dataset?.action;
+  if (!action) return;
+
+  if (action === "flash") {
+    const flashButton = document.getElementById("flash-button");
+    flashButton?.click();
+  } else if (action === "device-wifi") {
+    const applyButton = document.getElementById("settings-apply-device-wifi-button");
+    if (applyButton) {
+      applyButton.click();
+    } else {
+      await applySettings("device-wifi");
+    }
+  } else if (action === "mqtt") {
+    const applyButton = document.getElementById("settings-apply-mqtt-button");
+    if (applyButton) {
+      applyButton.click();
+    } else {
+      await applySettings("mqtt");
+    }
   }
 });
 
@@ -2862,7 +2983,7 @@ async function applySettings(mode = "all") {
 
     const plan = buildConfigurationPlan({ requireMqtt: mode !== "device-wifi" });
     appendLog(mode === "all" ? "Applying all settings immediately." : mode === "device-wifi" ? "Applying device, radio, and WiFi settings." : "Applying MQTT settings only.");
-    syncActiveStep("configure-device", { force: true });
+    // Don't auto-switch tabs - let user navigate manually
 
     if (Date.now() - serialConnectedAt < 2500) {
       appendLog("Allowing a short startup delay before sending the first CLI command.");
@@ -2918,25 +3039,27 @@ async function applySettings(mode = "all") {
       return;
     }
 
-    await runCommands(plan.mqtt);
-    setCommandState(4, "is-done", "Written");
-    setPanelState(settingsState, "MQTT saved", "panel__status--success");
-    setText(summaryConfig, "MQTT commands applied");
-    setPanelState(verifyState, "Ready to verify", "panel__status--idle");
-    appendLog("MQTT settings written. Reconnecting MQTT now.");
-    await runCommandExpectOk("mqtt reconnect", 8000);
-    try {
-      const { connected } = await readMqttStatus(8000);
-      if (activeMqttBrokerIds.size === 0) {
-        setText(stateMqtt, connected ? "Connected" : "Disconnected");
-        setText(summaryMqtt, connected ? "mqtt.connected=true" : "mqtt.connected=false");
+    if (mode !== "device-wifi") {
+      await runCommands(plan.mqtt);
+      setCommandState(4, "is-done", "Written");
+      setPanelState(settingsState, "MQTT saved", "panel__status--success");
+      setText(summaryConfig, "MQTT commands applied");
+      setPanelState(verifyState, "Ready to verify", "panel__status--idle");
+      appendLog("MQTT settings written. Reconnecting MQTT now.");
+      await runCommandExpectOk("mqtt reconnect", 8000);
+      try {
+        const { connected } = await readMqttStatus(8000);
+        if (activeMqttBrokerIds.size === 0) {
+          setText(stateMqtt, connected ? "Connected" : "Disconnected");
+          setText(summaryMqtt, connected ? "mqtt.connected=true" : "mqtt.connected=false");
+        }
+      } catch (error) {
+        if (activeMqttBrokerIds.size === 0) {
+          setText(stateMqtt, "Unknown");
+          setText(summaryMqtt, "MQTT status unknown");
+        }
+        appendLog(`MQTT status check warning: ${error.message}`);
       }
-    } catch (error) {
-      if (activeMqttBrokerIds.size === 0) {
-        setText(stateMqtt, "Unknown");
-        setText(summaryMqtt, "MQTT status unknown");
-      }
-      appendLog(`MQTT status check warning: ${error.message}`);
     }
   } catch (error) {
     setPanelState(settingsState, "Failed", "panel__status--error");
@@ -2945,7 +3068,7 @@ async function applySettings(mode = "all") {
   }
 }
 
-settingsApplyButton.addEventListener("click", () => applySettings("all"));
+settingsApplyButton?.addEventListener("click", () => applySettings("all"));
 settingsApplyDeviceWifiButton?.addEventListener("click", () => applySettings("device-wifi"));
 settingsApplyMqttButton?.addEventListener("click", () => applySettings("mqtt"));
 if (configureButton) {
@@ -2960,7 +3083,7 @@ clearLogButton.addEventListener("click", () => {
 populateBoards();
 evaluateCapabilities();
 applyRadioPreset("EU_UK_RECOMMENDED");
-setUiMode(UI_MODES.SIMPLE);
+setUiMode(UI_MODES.ADVANCED);
 updateAdditionalBrokerVisibility();
 updateBrokerTopicPreviews();
 buildCommandPreview();
