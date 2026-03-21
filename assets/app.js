@@ -62,6 +62,7 @@ const summaryMqtt = document.getElementById("summary-mqtt");
 const flashButton = document.getElementById("flash-button");
 const updateButton = document.getElementById("update-button");
 const manifestButton = document.getElementById("manifest-button");
+const firmwareBranchSelect = document.getElementById("firmware-branch");
 const serialButton = document.getElementById("serial-button") || null;
 const navSerialButton = document.getElementById("nav-serial-button");
 const navActionButton = document.getElementById("nav-action-button");
@@ -91,7 +92,7 @@ const mqttRetainIndicators = [1, 3, 5].reduce((map, index) => {
 const capOverall = document.getElementById("cap-overall");
 const capSummary = document.getElementById("cap-summary");
 
-const firmwareData = window.FIRMWARE_DATA || { boards: [] };
+let firmwareData = window.FIRMWARE_DATA || { boards: [] };
 const FIRMWARE_FETCH_VERSION = "20260309-2102";
 const UI_MODE_STORAGE_KEY = "meshcore-mqtt-ui-mode";
 const UI_MODES = {
@@ -100,6 +101,9 @@ const UI_MODES = {
 };
 
 let flashComplete = false;
+let currentFirmwareBranch = "main";
+const FIRMWARE_BRANCH_STORAGE_KEY = "meshcore-mqtt-firmware-branch";
+const DEV_WARNING_SHOWN_KEY = "meshcore-mqtt-dev-warning-shown";
 let serialConnected = false;
 let configApplied = false;
 let currentBoard = null;
@@ -1241,6 +1245,66 @@ function setBoardDetails(board, { userSelected = false } = {}) {
   flashButton.disabled = !flashReady || flashingNow;
   updateButton.disabled = !flashReady || flashingNow;
   renderBoardOptions();
+}
+
+async function loadFirmwareDataForBranch(branch) {
+  appendLog(`Loading firmware data for branch: ${branch}...`);
+
+  try {
+    // Determine the firmware data URL based on branch
+    const isMain = branch === "main";
+    const firmwareDataUrl = isMain
+      ? "/assets/firmware-data.js"
+      : `/assets/firmware-data-${branch}.js`;
+
+    // Fetch the firmware data script
+    const response = await fetch(firmwareDataUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${branch} firmware data`);
+    }
+
+    // Get the script text and evaluate it
+    const scriptText = await response.text();
+
+    // Create a new script element and execute it
+    const script = document.createElement("script");
+    script.textContent = scriptText;
+    document.head.appendChild(script);
+
+    // Update the global FIRMWARE_DATA
+    if (window.FIRMWARE_DATA && window.FIRMWARE_DATA.boards) {
+      firmwareData = window.FIRMWARE_DATA;
+      boardManifestCache.clear();
+
+      // Update version display to show branch
+      const branchLabel = isMain ? "" : ` (${branch.toUpperCase()})`;
+      firmwareVersion.textContent = `${firmwareData.boards[0]?.firmwareVersion || "Unknown"}${branchLabel}`;
+      firmwareFamily.textContent = `${firmwareData.boards[0]?.firmwareName || "meshcore-mqtt"}${branchLabel}`;
+
+      // Repopulate boards with new data
+      populateBoards();
+
+      // If a board was selected, refresh its details
+      if (currentBoard) {
+        const newBoard = firmwareData.boards.find((b) => b.id === currentBoard.id);
+        if (newBoard) {
+          setBoardDetails(newBoard, { userSelected: true });
+        }
+      }
+
+      appendLog(`Loaded ${firmwareData.boards.length} board definitions for ${branch} branch.`);
+    } else {
+      throw new Error("Invalid firmware data format");
+    }
+  } catch (error) {
+    appendLog(`Warning: Could not load ${branch} firmware data: ${error.message}`);
+    // Revert to main if dev fails
+    if (branch !== "main") {
+      firmwareBranchSelect.value = "main";
+      currentFirmwareBranch = "main";
+      appendLog("Reverted to main firmware branch.");
+    }
+  }
 }
 
 function populateBoards() {
@@ -2840,6 +2904,61 @@ downloadBackupButton.addEventListener("click", () => {
   }
 });
 
+// Firmware branch selector
+firmwareBranchSelect?.addEventListener("change", async () => {
+  const branch = firmwareBranchSelect.value;
+  currentFirmwareBranch = branch;
+
+  // Save branch preference
+  try {
+    window.localStorage.setItem(FIRMWARE_BRANCH_STORAGE_KEY, branch);
+  } catch (e) {
+    // ignore storage errors
+  }
+
+  // Show warning for dev branch
+  if (branch === "dev") {
+    const alreadyWarned = () => {
+      try {
+        return window.localStorage.getItem(DEV_WARNING_SHOWN_KEY) === "true";
+      } catch (e) {
+        return false;
+      }
+    };
+
+    if (!alreadyWarned()) {
+      const proceed = window.confirm(
+        "WARNING: You are selecting the DEVELOPMENT firmware branch.\n\n" +
+        "This is an unstable, experimental build that may contain bugs, " +
+        "incomplete features, or breaking changes.\n\n" +
+        "DO NOT use this for production devices.\n\n" +
+        "Continue?"
+      );
+      if (!proceed) {
+        // Revert to main
+        firmwareBranchSelect.value = "main";
+        currentFirmwareBranch = "main";
+        try {
+          window.localStorage.setItem(FIRMWARE_BRANCH_STORAGE_KEY, "main");
+        } catch (e) {
+          // ignore
+        }
+        return;
+      }
+      // Mark that we've shown the warning
+      try {
+        window.localStorage.setItem(DEV_WARNING_SHOWN_KEY, "true");
+      } catch (e) {
+        // ignore
+      }
+    }
+  }
+
+  appendLog(`Firmware branch changed to: ${branch}`);
+  // Reload firmware data for the selected branch
+  await loadFirmwareDataForBranch(branch);
+});
+
 flashButton.addEventListener("click", async () => {
   appendLog("Flash Full Firmware clicked.");
   const confirmed = window.confirm(
@@ -3084,6 +3203,20 @@ populateBoards();
 evaluateCapabilities();
 applyRadioPreset("EU_UK_RECOMMENDED");
 setUiMode(UI_MODES.ADVANCED);
+
+// Initialize firmware branch from storage
+(function initFirmwareBranch() {
+  try {
+    const savedBranch = window.localStorage.getItem(FIRMWARE_BRANCH_STORAGE_KEY);
+    if (savedBranch && (savedBranch === "main" || savedBranch === "dev")) {
+      firmwareBranchSelect.value = savedBranch;
+      currentFirmwareBranch = savedBranch;
+    }
+  } catch (e) {
+    // ignore storage errors
+  }
+})();
+
 updateAdditionalBrokerVisibility();
 updateBrokerTopicPreviews();
 buildCommandPreview();

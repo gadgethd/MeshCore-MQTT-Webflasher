@@ -764,6 +764,18 @@ button:focus,
   font-size: 0.85rem;
 }
 
+.firmware-branch-selector {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(7, 17, 29, 0.54);
+}
+
+.firmware-branch-selector select {
+  max-width: 200px;
+}
+
 .radio-config {
   margin-bottom: 16px;
   padding: 14px;

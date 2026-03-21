@@ -199,6 +199,15 @@
                 <span class="panel__status panel__status--idle" id="flash-state">Idle</span>
               </div>
               <div class="step-panel__body">
+              <div class="firmware-branch-selector">
+                <label class="field">
+                  <span class="field__label">Firmware Branch</span>
+                  <select id="firmware-branch" name="firmwareBranch">
+                    <option value="main" selected>Main (Stable)</option>
+                    <option value="dev">Dev (Unstable)</option>
+                  </select>
+                </label>
+              </div>
               <div class="radio-config">
                 <div class="panel__header panel__header--compact">
                   <div>
@@ -860,6 +869,6 @@
     </div>
 
     <script src="assets/firmware-data.js?v=20260314-2300"></script>
-    <script src="assets/app.js?v=20260314-2400"></script>
+    <script src="assets/app.js?v=20260321-1410"></script>
   </body>
 </html>
