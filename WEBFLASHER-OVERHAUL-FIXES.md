@@ -1,5 +1,7 @@
 # MeshCore MQTT Webflasher — Overhaul Fix Plan (v1)
 
+**STATUS: ALL FIXES IMPLEMENTED + DEPLOYED 2026-08-01** (commits `017e628`, `e137c91` on `main`, container rebuilt, live verified)
+
 **Repo:** `gadgethd/MeshCore-MQTT-Webflasher` (working tree on `flasher-ukmesh` = 192.168.100.106)
 **Live site:** `https://flasher.ukmesh.com/new/` — served by `meshcore-mqtt-webflasher` nginx container (built from this working tree, port 8080), behind Cloudflare remote tunnel (`cloudflared.service`, token).
 **Firmware validated against:** `/home/ben/MeshCore` (gadgethd/MeshCore-MQTT, v1.16.0), `CommonCLI.cpp`, `MyMesh.cpp`, `MqttReporter.cpp`, `MqttSettingsStore`.
