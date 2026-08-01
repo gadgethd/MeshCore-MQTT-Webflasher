@@ -1,0 +1,35 @@
+{
+  "base_env": "LilyGo_T3S3_sx1276_repeater",
+  "build_env": "LilyGo_T3S3_sx1276_repeater_mqtt_dynamic",
+  "firmware_name": "meshcore-mqtt",
+  "firmware_version": "v1.16.0",
+  "built_at_utc": "2026-06-13T14:37:09Z",
+  "artifacts": {
+    "update": "meshcore-mqtt-v1.16.0-LilyGo_T3S3_sx1276_repeater-update-541e.bin",
+    "full": "meshcore-mqtt-v1.16.0-LilyGo_T3S3_sx1276_repeater-full-5390.bin",
+    "bootloader": "meshcore-mqtt-v1.16.0-LilyGo_T3S3_sx1276_repeater-bootloader-e01a.bin",
+    "partitions": "meshcore-mqtt-v1.16.0-LilyGo_T3S3_sx1276_repeater-partitions-148b.bin",
+    "boot_app0": "meshcore-mqtt-v1.16.0-LilyGo_T3S3_sx1276_repeater-boot_app0-f94c.bin"
+  },
+  "flash_offsets": {
+    "bootloader": "0x0000",
+    "partitions": "0x8000",
+    "boot_app0": "0xe000",
+    "update": "0x10000",
+    "full": "0x00000"
+  },
+  "update_segments": [
+    {
+      "name": "firmware",
+      "path": "meshcore-mqtt-v1.16.0-LilyGo_T3S3_sx1276_repeater-update-541e.bin",
+      "offset": "0x10000"
+    }
+  ],
+  "full_segments": [
+    {
+      "name": "merged",
+      "path": "meshcore-mqtt-v1.16.0-LilyGo_T3S3_sx1276_repeater-full-5390.bin",
+      "offset": "0x00000"
+    }
+  ]
+}

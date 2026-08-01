@@ -4,3 +4,6 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY index.html /usr/share/nginx/html/index.html
 COPY assets /usr/share/nginx/html/assets
 COPY firmware /usr/share/nginx/html/firmware
+
+# New clean flasher (served at /new alongside the existing UI)
+COPY new /usr/share/nginx/html/new

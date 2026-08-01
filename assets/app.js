@@ -11,21 +11,19 @@ const flashPackage = document.getElementById("flash-package");
 const hardwareCheck = document.getElementById("hardware-check");
 const modeGate = document.getElementById("mode-gate");
 const workflowPanels = document.getElementById("workflow-panels");
-const advancedTabs = document.getElementById("advanced-tabs");
-const advancedTabButtons = Array.from(document.querySelectorAll(".mode-tabs__button"));
-const modeSimpleButton = document.getElementById("mode-simple-button");
-const modeAdvancedButton = document.getElementById("mode-advanced-button");
-const sidebarModeSimpleButton = document.getElementById("sidebar-mode-simple");
-const sidebarModeAdvancedButton = document.getElementById("sidebar-mode-advanced");
+const guidedConsole = document.getElementById("guided-console");
 const flashState = document.getElementById("flash-state");
 const flashProgressBar = document.getElementById("flash-progress-bar");
 const flashProgressText = document.getElementById("flash-progress-text");
 const flashProgressPercent = document.getElementById("flash-progress-percent");
+const flashProgressLabel = document.getElementById("flash-progress-label");
 const artifactFullName = document.getElementById("artifact-full-name");
 const artifactUpdateName = document.getElementById("artifact-update-name");
+const boardNotesCallout = document.getElementById("board-notes-callout");
 const deviceReadState = document.getElementById("device-read-state");
 const captureDeviceButton = document.getElementById("capture-device-button");
 const downloadBackupButton = document.getElementById("download-backup-button");
+const backupSummary = document.getElementById("backup-summary");
 const capturedName = document.getElementById("captured-name");
 const capturedLat = document.getElementById("captured-lat");
 const capturedLon = document.getElementById("captured-lon");
@@ -52,6 +50,7 @@ const stateFlash = document.getElementById("state-flash");
 const stateSerial = document.getElementById("state-serial");
 const stateMqtt = document.getElementById("state-mqtt");
 const logPane = document.getElementById("log-pane");
+const guidedLogPane = document.getElementById("guided-log-pane");
 const commandItems = document.querySelectorAll(".command-list__item");
 
 const summaryFirmware = document.getElementById("summary-firmware");
@@ -71,6 +70,7 @@ const settingsApplyMqttButton = document.getElementById("settings-apply-mqtt-but
 const settingsApplyButton = document.getElementById("settings-apply-button") || null;
 const configureButton = document.getElementById("configure-button");
 const clearLogButton = document.getElementById("clear-log-button");
+const applyConnectSerialButton = document.getElementById("apply-connect-serial-button");
 const settingsForm = document.getElementById("settings-form");
 const commandPreviewPane = document.getElementById("command-preview-pane");
 const repeaterNameInput = document.getElementById("repeater-name");
@@ -99,6 +99,15 @@ const UI_MODES = {
   SIMPLE: "simple",
   ADVANCED: "advanced"
 };
+
+const INTENTS = {
+  FRESH: "fresh-install",
+  UPDATE: "firmware-update",
+  RESTORE: "restore-backup",
+  BACKUP: "capture-backup",
+  VIEW_SETTINGS: "view-settings"
+};
+const INTENT_STORAGE_KEY = "meshcore-mqtt-intent";
 
 let flashComplete = false;
 let currentFirmwareBranch = "main";
@@ -131,11 +140,18 @@ const STEP_ORDER = [
   "choose-board",
   "flash-firmware",
   "device-settings",
-  "mqtt-settings",
   "configure-device"
 ];
 let activeStepId = "read-device";
 let uiMode = null;
+let currentIntent = null;
+let backupSkipped = false;
+let guidedReadComplete = false;
+let guidedBranchConfirmed = false;
+let guidedConfigIndex = 0;
+let guidedMqttBrokerCount = 1;
+let guidedBusyMessage = "";
+let guidedFlashIsUpdate = false;
 
 const RADIO_PRESETS = {
   AU_RECOMMENDED: {
@@ -293,6 +309,22 @@ function saveUiMode(mode) {
   }
 }
 
+function loadIntent() {
+  try {
+    const v = window.localStorage.getItem(INTENT_STORAGE_KEY);
+    return Object.values(INTENTS).includes(v) ? v : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveIntent(intent) {
+  try {
+    if (!intent) { window.localStorage.removeItem(INTENT_STORAGE_KEY); return; }
+    window.localStorage.setItem(INTENT_STORAGE_KEY, intent);
+  } catch (e) {}
+}
+
 function maskPrivateKeyValue(value) {
   if (!value) return "Not captured";
   if (value.length <= 16) return "********";
@@ -305,6 +337,78 @@ function formatCapturedValue(value) {
 
 function formatCapturedSecret(value) {
   return value ? "Captured" : "Not captured";
+}
+
+function renderReadFirstBadge(target, text = "→ Read device first") {
+  if (!target) return;
+  target.innerHTML = "";
+  const badge = document.createElement("span");
+  badge.className = "badge-uncaptured";
+  badge.textContent = text;
+  target.appendChild(badge);
+}
+
+function renderCaptureValue(target, value, { missingText = "→ Read device first" } = {}) {
+  if (!target) return;
+  if (!value || value === "Not captured") {
+    renderReadFirstBadge(target, missingText);
+    return;
+  }
+  target.textContent = value;
+}
+
+function renderBackupSummary(info) {
+  if (!backupSummary) return;
+  backupSummary.innerHTML = "";
+
+  if (!info) {
+    backupSummary.hidden = true;
+    return;
+  }
+
+  const chips = [];
+  if (info.wifiSsid) {
+    chips.push(`WiFi ${info.wifiSsid}`);
+  }
+  if (info.privateKey) {
+    chips.push("Private key captured");
+  }
+  const brokerCount = Array.isArray(info.brokers)
+    ? info.brokers.filter((broker) => broker?.uri).length
+    : info.mqttUri ? 1 : 0;
+  if (brokerCount > 0) {
+    chips.push(`${brokerCount} MQTT broker${brokerCount === 1 ? "" : "s"}`);
+  }
+  if (info.name) {
+    chips.push(`Node ${info.name}`);
+  }
+
+  if (chips.length === 0) {
+    backupSummary.hidden = true;
+    return;
+  }
+
+  chips.forEach((label) => {
+    const chip = document.createElement("span");
+    chip.className = "backup-summary__chip";
+    chip.textContent = label;
+    backupSummary.appendChild(chip);
+  });
+  backupSummary.hidden = false;
+}
+
+function renderBoardNotes(board) {
+  if (!boardNotesCallout) return;
+  const notes = Array.isArray(board?.notes)
+    ? board.notes.filter(Boolean)
+    : board?.notes ? [board.notes] : [];
+  if (notes.length === 0) {
+    boardNotesCallout.hidden = true;
+    boardNotesCallout.textContent = "";
+    return;
+  }
+  boardNotesCallout.textContent = notes.join(" ");
+  boardNotesCallout.hidden = false;
 }
 
 function formatCapturedTimestamp(timestamp) {
@@ -349,7 +453,8 @@ function isStatusSlot(slotIndex) {
 
 function activeLogicalBrokerCount(formData, mode = uiMode) {
   if (mode === UI_MODES.SIMPLE) {
-    return 1;
+    const configuredCount = sanitizeAdditionalBrokerCount(formData.get("additionalBrokerCount")) + 1;
+    return Math.max(1, Math.min(LOGICAL_MQTT_BROKER_MAX, Math.max(guidedMqttBrokerCount, configuredCount)));
   }
   return sanitizeAdditionalBrokerCount(formData.get("additionalBrokerCount")) + 1;
 }
@@ -457,7 +562,7 @@ function normalizeBrokerRecord(index, broker = {}) {
 
 function readRawBrokerSettings(formData, index, { respectMode = true } = {}) {
   const effectiveMode = respectMode ? uiMode : UI_MODES.ADVANCED;
-  if (effectiveMode === UI_MODES.SIMPLE && index > 1) {
+  if (effectiveMode === UI_MODES.SIMPLE && index > 1 && slotLogicalIndex(index) > activeLogicalBrokerCount(formData, effectiveMode)) {
     return normalizeBrokerRecord(index, {
       enabled: false,
       uri: formData.get(brokerFormFieldName(index, "uri")),
@@ -626,6 +731,90 @@ function updateBrokerTopicPreviews() {
   updateRetainIndicators();
 }
 
+const RADIO_RANGES = {
+  "radio-frequency": { min: 150, max: 960, label: "150-960 MHz" },
+  "radio-bandwidth": { min: 7.8, max: 500, label: "7.8-500 kHz" },
+  "radio-sf": { min: 5, max: 12, label: "5-12" },
+  "radio-cr": { min: 5, max: 8, label: "5-8" }
+};
+
+function validateRadioField(input, range, { showError = true } = {}) {
+  if (!input) return true;
+  const field = input.closest(".field");
+  const errorSpan = field?.querySelector(".field__error");
+  const value = input.value.trim();
+  const numericValue = Number.parseFloat(value);
+  const valid = value !== "" && Number.isFinite(numericValue) && numericValue >= range.min && numericValue <= range.max;
+
+  if (field) {
+    field.classList.toggle("field--error", showError && !valid);
+  }
+  if (errorSpan) {
+    errorSpan.textContent = showError && !valid ? `Valid range: ${range.label}` : "";
+  }
+  return valid;
+}
+
+function validateRadioFields({ showErrors = true } = {}) {
+  return Object.entries(RADIO_RANGES).every(([id, range]) =>
+    validateRadioField(document.getElementById(id), range, { showError: showErrors })
+  );
+}
+
+function updatePrimaryActionAvailability() {
+  const flashReady = Boolean(currentBoard?.artifactBase && currentBoard?.chipFamily);
+  const radioValid = validateRadioFields({ showErrors: false });
+  const flashDisabled = !flashReady || flashingNow || !radioValid;
+  const settingsDisabled = !radioValid || !currentBoard;
+
+  if (flashButton) flashButton.disabled = flashDisabled;
+  if (updateButton) updateButton.disabled = flashDisabled;
+
+  [
+    settingsApplyDeviceWifiButton,
+    settingsApplyMqttButton,
+    document.getElementById("settings-apply-all-button"),
+    configureButton,
+    settingsApplyButton
+  ].forEach((button) => {
+    if (button) {
+      button.disabled = settingsDisabled;
+    }
+  });
+}
+
+function clearCurrentBoardSelection() {
+  currentBoard = null;
+  boardSelectionConfirmed = false;
+  capturedDeviceInfo = null;
+  savedStep4Settings = null;
+
+  if (boardSelect) boardSelect.value = "";
+  if (boardTriggerLabel) boardTriggerLabel.textContent = "Select supported board";
+
+  setText(stateBoard, "Not selected");
+  setText(firmwareVersion, "Select board");
+  setText(firmwareFamily, "Select board");
+  setText(buildLabel, "Select board");
+  setText(flashPackage, "Awaiting board");
+  setText(hardwareCheck, "Awaiting board");
+  setText(artifactFullName, "Awaiting board");
+  setText(artifactUpdateName, "Awaiting board");
+  setText(stateFlash, "Not started");
+  setText(summaryFirmware, "Not flashed");
+  setText(summaryConfig, "Not sent");
+  setText(summaryMqtt, "Awaiting verify");
+  setPanelState(deviceReadState, "Not read", "panel__status--idle");
+  setPanelState(verifyState, "Awaiting verify", "panel__status--idle");
+
+  renderCapturedDeviceInfo(null);
+  renderBoardNotes(null);
+  resetSettingsFormForBoard();
+  buildCommandPreview();
+  updatePrimaryActionAvailability();
+  renderBoardOptions();
+}
+
 function deriveStatusTopic(topicRoot) {
   const normalized = String(topicRoot || "").trim().replace(/\/+$/, "");
   if (!normalized) return "";
@@ -730,47 +919,296 @@ function syncAllBrokerDefaultTopicTogglesFromValues() {
 }
 
 function updateModeButtons() {
-  const simpleSelected = uiMode === UI_MODES.SIMPLE;
-  const advancedSelected = uiMode === UI_MODES.ADVANCED;
-  [modeSimpleButton, sidebarModeSimpleButton].forEach((button) => {
-    if (!button) return;
-    button.classList.toggle("is-selected", simpleSelected);
-    button.setAttribute("aria-pressed", simpleSelected ? "true" : "false");
-  });
-  [modeAdvancedButton, sidebarModeAdvancedButton].forEach((button) => {
-    if (!button) return;
-    button.classList.toggle("is-selected", advancedSelected);
-    button.setAttribute("aria-pressed", advancedSelected ? "true" : "false");
-  });
+  return;
 }
 
 function updateAdvancedTabs() {
-  if (!advancedTabs) return;
-  const showTabs = Boolean(uiMode);
-  advancedTabs.hidden = !showTabs;
-  advancedTabButtons.forEach((button) => {
-    const isActive = button.dataset.stepTarget === activeStepId;
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-selected", isActive ? "true" : "false");
-    button.tabIndex = isActive ? 0 : -1;
-  });
+  return;
 }
 
 function updateWorkflowModeUi() {
   document.body.classList.toggle("mode-simple", uiMode === UI_MODES.SIMPLE);
   document.body.classList.toggle("mode-advanced", uiMode === UI_MODES.ADVANCED);
   document.body.classList.toggle("mode-unset", !uiMode);
-  if (modeGate) {
-    // Show mode gate only when no mode is selected
-    modeGate.hidden = !!uiMode;
-  }
-  if (workflowPanels) {
-    workflowPanels.hidden = !uiMode;
-  }
+  const workflowReady = !!uiMode && !!currentIntent;
+  if (modeGate) modeGate.hidden = workflowReady;
+  if (workflowPanels) workflowPanels.hidden = !workflowReady;
+  if (guidedConsole) guidedConsole.hidden = false;
   updateModeButtons();
+  updateIntentButtons();
   updateAdvancedTabs();
   updateAdditionalBrokerVisibility();
   updateBrokerTopicPreviews();
+  const stepper = document.getElementById("step-stepper");
+  if (stepper) stepper.hidden = !(workflowReady && uiMode === UI_MODES.ADVANCED);
+  const simpleProgress = document.getElementById("simple-progress");
+  if (simpleProgress) simpleProgress.hidden = !(workflowReady && uiMode === UI_MODES.SIMPLE);
+  renderGuidedConsole();
+}
+
+function updateIntentButtons() {
+  Object.values(INTENTS).forEach((intent) => {
+    const btn = document.getElementById(`intent-${intent}`);
+    if (btn) btn.classList.toggle("is-selected", currentIntent === intent);
+  });
+}
+
+function setIntent(intent, { persist = true } = {}) {
+  currentIntent = intent;
+  if (persist) saveIntent(intent);
+  guidedReadComplete = false;
+  guidedBranchConfirmed = false;
+  guidedConfigIndex = 0;
+  guidedMqttBrokerCount = 1;
+  guidedBusyMessage = "";
+  flashComplete = false;
+  configApplied = false;
+  guidedFlashIsUpdate = false;
+  updateWorkflowModeUi();
+  updateStep1ForIntent();
+  updateFlashPanelForIntent();
+  if (uiMode && currentIntent) {
+    syncActiveStep(recommendedStepId(), { force: true });
+  }
+  buildCommandPreview();
+}
+
+function updateStep1ForIntent() {
+  const panel = document.getElementById("read-device");
+  if (!panel || !currentIntent) return;
+
+  const heading = panel.querySelector("h2");
+  const eyebrow = panel.querySelector(".panel__eyebrow");
+  const uploadBtn = document.getElementById("upload-backup-button");
+  const skipBtn = document.getElementById("skip-backup-button");
+
+  if (currentIntent === INTENTS.RESTORE) {
+    if (heading) heading.textContent = "Upload Your Backup File";
+    if (eyebrow) eyebrow.textContent = "Step 1 — Restore";
+    if (captureDeviceButton) {
+      captureDeviceButton.classList.remove("button--primary");
+      captureDeviceButton.classList.add("button--secondary");
+    }
+    if (uploadBtn) {
+      uploadBtn.classList.remove("button--ghost");
+      uploadBtn.classList.add("button--primary");
+      uploadBtn.hidden = false;
+    }
+    if (skipBtn) skipBtn.hidden = true;
+  } else if (currentIntent === INTENTS.UPDATE) {
+    if (heading) heading.textContent = "Backup Before Updating";
+    if (eyebrow) eyebrow.textContent = "Step 1 — Backup";
+    if (captureDeviceButton) {
+      captureDeviceButton.classList.add("button--primary");
+      captureDeviceButton.classList.remove("button--secondary");
+    }
+    if (uploadBtn) {
+      uploadBtn.classList.remove("button--primary");
+      uploadBtn.classList.add("button--ghost");
+      uploadBtn.hidden = false;
+    }
+    if (skipBtn) {
+      skipBtn.hidden = false;
+      skipBtn.textContent = "Skip Backup →";
+    }
+  } else {
+    if (heading) heading.textContent = "Optional: Backup Your Current Device";
+    if (eyebrow) eyebrow.textContent = "Step 1 — Optional Backup";
+    if (captureDeviceButton) {
+      captureDeviceButton.classList.add("button--primary");
+      captureDeviceButton.classList.remove("button--secondary");
+    }
+    if (uploadBtn) {
+      uploadBtn.classList.remove("button--primary");
+      uploadBtn.classList.add("button--ghost");
+      uploadBtn.hidden = false;
+    }
+    if (skipBtn) {
+      skipBtn.hidden = false;
+      skipBtn.textContent = "Skip — this is a new device →";
+    }
+  }
+}
+
+function updateFlashPanelForIntent() {
+  const hint = document.getElementById("flash-intent-hint");
+  if (!currentIntent) return;
+
+  if (currentIntent === INTENTS.UPDATE) {
+    if (flashButton) { flashButton.classList.remove("button--primary"); flashButton.classList.add("button--secondary"); }
+    if (updateButton) { updateButton.classList.remove("button--secondary"); updateButton.classList.add("button--primary"); }
+    if (hint) {
+      hint.textContent = "Firmware Update — Flash Update Only is recommended to preserve your device settings.";
+      hint.hidden = false;
+    }
+  } else if (currentIntent === INTENTS.RESTORE) {
+    if (flashButton) { flashButton.classList.add("button--primary"); flashButton.classList.remove("button--secondary"); }
+    if (updateButton) { updateButton.classList.remove("button--primary"); updateButton.classList.add("button--secondary"); }
+    if (hint) {
+      hint.textContent = "Restore from Backup — Flash Full Firmware is recommended for a clean restore. Flash Update Only also works.";
+      hint.hidden = false;
+    }
+  } else {
+    if (flashButton) { flashButton.classList.add("button--primary"); flashButton.classList.remove("button--secondary"); }
+    if (updateButton) { updateButton.classList.remove("button--primary"); updateButton.classList.add("button--secondary"); }
+    if (hint) {
+      hint.textContent = "Fresh Install — use Flash Full Firmware for a clean first-time install.";
+      hint.hidden = false;
+    }
+  }
+}
+
+function showStepContinue(stepId, message) {
+  const callout = document.getElementById(`${stepId}-continue`);
+  if (!callout) return;
+  if (message) {
+    const msg = callout.querySelector(".step-continue-callout__message");
+    if (msg) msg.textContent = message;
+  }
+  callout.hidden = false;
+}
+
+function hideStepContinue(stepId) {
+  const el = document.getElementById(`${stepId}-continue`);
+  if (el) el.hidden = true;
+}
+
+function parseBackupFile(text) {
+  const lines = text.split(/\r?\n/);
+  const result = { boardId: null, boardLabel: null, captured: null, step4: null };
+  let section = "header";
+  const capturedMap = {};
+  const step4Map = {};
+  const capturedBrokers = {};
+  const step4Brokers = {};
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line === "[Captured Device Values]") { section = "captured"; continue; }
+    if (line === "[Step 4 Values Saved In This Browser]") { section = "step4"; continue; }
+
+    const colonIdx = line.indexOf(": ");
+    if (colonIdx === -1) continue;
+    const key = line.substring(0, colonIdx).trim();
+    const value = line.substring(colonIdx + 2);
+
+    if (section === "header") {
+      if (key === "Board") result.boardLabel = value;
+      if (key === "Board ID") result.boardId = value;
+    }
+
+    const brokerMatch = key.match(/^MQTT Broker (\d+) (.+)$/);
+    if (brokerMatch) {
+      const idx = parseInt(brokerMatch[1], 10);
+      const bKey = brokerMatch[2].toLowerCase().replace(/ /g, "");
+      const bMap = section === "captured" ? capturedBrokers : section === "step4" ? step4Brokers : null;
+      if (bMap) {
+        if (!bMap[idx]) bMap[idx] = { index: idx };
+        const keyMap = { enabled: "enabled", uri: "uri", username: "username", password: "password", topicroot: "topicRoot", iata: "iata", retainstatus: "retainStatus" };
+        const nk = keyMap[bKey];
+        if (nk) bMap[idx][nk] = nk === "enabled" ? value === "1" : value;
+      }
+      continue;
+    }
+
+    if (section === "captured") capturedMap[key] = value;
+    else if (section === "step4") step4Map[key] = value;
+  }
+
+  if (Object.keys(capturedMap).length > 0) {
+    result.captured = {
+      name: capturedMap["Name"] || "",
+      publicKey: capturedMap["Public Key"] || "",
+      lat: capturedMap["Latitude"] || "",
+      lon: capturedMap["Longitude"] || "",
+      privateKey: capturedMap["Private Key"] || "",
+      guestPassword: capturedMap["Guest Password"] || "",
+      radio: capturedMap["Radio"] || "",
+      wifiSsid: capturedMap["WiFi SSID"] || "",
+      wifiPassword: capturedMap["WiFi Password"] || "",
+      model: capturedMap["MQTT Model"] || "",
+      clientVersion: capturedMap["MQTT Client Version"] || "",
+      capturedAt: capturedMap["Captured At"] || new Date().toISOString(),
+      brokers: Object.values(capturedBrokers).sort((a, b) => a.index - b.index),
+      backupSource: "file"
+    };
+  }
+
+  if (Object.keys(step4Map).length > 0) {
+    result.step4 = {
+      repeaterName: step4Map["Repeater Name"] || "",
+      privateKey: step4Map["Private Key"] || "",
+      guestPassword: step4Map["Guest Password"] || "",
+      adminPassword: step4Map["Admin Password"] || "",
+      deviceLat: step4Map["Latitude"] || "",
+      deviceLon: step4Map["Longitude"] || "",
+      wifiSsid: step4Map["WiFi SSID"] || "",
+      wifiPassword: step4Map["WiFi Password"] || "",
+      model: step4Map["MQTT Model"] || "",
+      clientVersion: step4Map["MQTT Client Version"] || "",
+      additionalBrokerCount: parseInt(step4Map["Additional Brokers"] || "0", 10),
+      brokers: Object.values(step4Brokers).sort((a, b) => a.index - b.index)
+    };
+  }
+
+  return result;
+}
+
+function loadBackupFromFile() {
+  const input = document.getElementById("restore-backup-input");
+  if (!input) return;
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    input.value = "";
+    try {
+      const text = await file.text();
+      const parsed = parseBackupFile(text);
+      if (!parsed.captured && !parsed.step4) {
+        showToast("Could not parse backup file", "error");
+        appendLog("Backup restore failed: unrecognised file format.");
+        return;
+      }
+      if (parsed.boardId && currentBoard?.id !== parsed.boardId) {
+        const board = firmwareData.boards.find((b) => b.id === parsed.boardId);
+        if (board) {
+          setBoardDetails(board, { userSelected: false });
+          appendLog(`Auto-selected board from backup: ${board.label}`);
+        } else {
+          appendLog(`Board "${parsed.boardId}" from backup not found in firmware list — select manually.`);
+        }
+      }
+      const boardId = currentBoard?.id || parsed.boardId || "unknown";
+      if (parsed.captured) {
+        capturedDeviceInfo = parsed.captured;
+        saveCapturedDeviceInfo(boardId, capturedDeviceInfo);
+        renderCapturedDeviceInfo(capturedDeviceInfo);
+        applyCapturedDeviceInfoToForm(capturedDeviceInfo);
+        setPanelState(deviceReadState, "Loaded from backup file", "panel__status--success");
+      }
+      if (parsed.step4) {
+        savedStep4Settings = parsed.step4;
+        saveStep4Settings(boardId, savedStep4Settings);
+        applySavedStep4SettingsToForm(savedStep4Settings);
+      }
+      updateBackupExportAvailability();
+      buildCommandPreview();
+      updateBrokerTopicPreviews();
+      const boardMsg = parsed.boardLabel ? ` (${parsed.boardLabel})` : "";
+      appendLog(`Backup file loaded${boardMsg}.`);
+      showToast(`Backup loaded${boardMsg}`, "success");
+      showStepContinue("read-device", "Backup loaded from file — continue to board selection");
+      guidedReadComplete = true;
+      guidedBusyMessage = "";
+      setActiveStep("choose-board");
+      renderGuidedConsole();
+    } catch (err) {
+      appendLog(`Backup restore error: ${err.message}`);
+      showToast("Failed to load backup file", "error");
+    }
+  };
+  input.click();
 }
 
 function setUiMode(mode, { persist = true } = {}) {
@@ -783,7 +1221,9 @@ function setUiMode(mode, { persist = true } = {}) {
     activeStepId = null;
   }
   updateWorkflowModeUi();
-  syncActiveStep(uiMode ? recommendedStepId() : null, { force: true });
+  if (uiMode && currentIntent) {
+    syncActiveStep(recommendedStepId(), { force: true });
+  }
   buildCommandPreview();
 }
 
@@ -792,10 +1232,570 @@ function getStepIndex(stepId) {
   return index >= 0 ? index : 0;
 }
 
+function updateStepper(stepId) {
+  const stepper = document.getElementById("step-stepper");
+  const activeIndex = STEP_ORDER.indexOf(stepId);
+  if (stepper) {
+    stepper.querySelectorAll(".step-stepper__item").forEach((item) => {
+      const targetStep = item.dataset.stepperTarget;
+      const itemIndex = STEP_ORDER.indexOf(targetStep);
+      item.classList.toggle("is-active", targetStep === stepId);
+      item.classList.toggle("is-done", itemIndex < activeIndex);
+    });
+  }
+
+  const simpleProgress = document.getElementById("simple-progress");
+  const simpleDots = simpleProgress?.querySelectorAll(".simple-progress__dot");
+  const label = document.getElementById("simple-progress-label");
+  if (simpleDots && activeIndex >= 0) {
+    simpleDots.forEach((dot, i) => {
+      dot.classList.toggle("is-active", i === activeIndex);
+      dot.classList.toggle("is-done", i < activeIndex);
+    });
+    if (label) {
+      label.textContent = `Step ${activeIndex + 1} of ${STEP_ORDER.length}`;
+    }
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function guidedStepLabel() {
+  if (!currentIntent) return "Start";
+  if (!guidedReadComplete) return "Read";
+  if (!currentBoard || !boardSelectionConfirmed) return "Board";
+  if (!guidedBranchConfirmed) return "Branch";
+  if (!flashComplete) return "Flash";
+  if (guidedConfigIndex < guidedConfigFields().length) return "Configure";
+  if (!configApplied) return "Apply";
+  return "Done";
+}
+
+function guidedConfigFields() {
+  const formInput = (name) => settingsForm?.elements?.namedItem(name);
+  const formData = settingsForm ? new FormData(settingsForm) : new FormData();
+  const brokerCount = activeLogicalBrokerCount(formData, UI_MODES.SIMPLE);
+  const fields = [
+    { label: "Repeater name", input: () => repeaterNameInput, placeholder: "e.g. UKMesh-Repeater", required: true },
+    { label: "Private key", input: () => privateKeyInput, placeholder: "128 hex characters", required: false, sensitive: true },
+    { label: "Guest password", input: () => guestPasswordInput, placeholder: "15 chars max", required: false, sensitive: true },
+    { label: "Admin password", input: () => adminPasswordInput, placeholder: "15 chars max", required: false, sensitive: true },
+    { label: "Latitude", input: () => deviceLatInput, placeholder: "Optional", required: false },
+    { label: "Longitude", input: () => deviceLonInput, placeholder: "Optional", required: false },
+    { label: "WiFi SSID", input: () => formInput("wifiSsid"), placeholder: "WiFi network name", required: true },
+    { label: "WiFi password", input: () => formInput("wifiPassword"), placeholder: "WiFi password", required: true, sensitive: true }
+  ];
+
+  for (let logicalIndex = 1; logicalIndex <= brokerCount; logicalIndex += 1) {
+    const slot = logicalBrokerMainSlot(logicalIndex);
+    const prefix = `MQTT ${logicalIndex}`;
+    fields.push(
+      { label: `${prefix} broker URI`, input: () => getBrokerFieldInput(slot, "uri"), placeholder: "mqtt://host:1883", required: logicalIndex === 1, mqttLogicalIndex: logicalIndex },
+      { label: `${prefix} username`, input: () => getBrokerFieldInput(slot, "username"), placeholder: "Optional", required: false, mqttLogicalIndex: logicalIndex },
+      { label: `${prefix} password`, input: () => getBrokerFieldInput(slot, "password"), placeholder: "Optional", required: false, sensitive: true, mqttLogicalIndex: logicalIndex },
+      { label: `${prefix} topic root`, input: () => getBrokerFieldInput(slot, "topicRoot"), placeholder: "Optional", required: false, mqttLogicalIndex: logicalIndex },
+      { label: `${prefix} IATA`, input: () => getBrokerFieldInput(slot, "iata"), placeholder: "Optional", required: false, mqttLogicalIndex: logicalIndex },
+      {
+        label: `${prefix} retain status`,
+        input: () => getBrokerFieldInput(slot, "retainStatus"),
+        options: [
+          { value: "0", label: "Off" },
+          { value: "1", label: "On" }
+        ],
+        required: false,
+        mqttLogicalIndex: logicalIndex,
+        canAddAnotherMqtt: logicalIndex === brokerCount && logicalIndex < LOGICAL_MQTT_BROKER_MAX
+      }
+    );
+  }
+
+  return fields;
+}
+
+function guidedActionButton(label, action, variant = "primary") {
+  return `<button class="guided-choice guided-choice--${variant}" type="button" data-guide-action="${action}">${escapeHtml(label)}</button>`;
+}
+
+function guidedBackButton() {
+  return currentIntent
+    ? `<button class="guided-back" type="button" data-guide-action="back">Back</button>`
+    : "";
+}
+
+function guidedBackSlot() {
+  return currentIntent ? `<div class="guided-card-top">${guidedBackButton()}</div>` : "";
+}
+
+function settingsEditorField(label, input, placeholder, attrs = "") {
+  const inputEl = input();
+  const value = inputEl?.value || "";
+  const fieldName = inputEl?.name || inputEl?.getAttribute?.("form") || "";
+  const dataAttr = fieldName ? `data-field="${escapeHtml(fieldName)}"` : "";
+  return `<label class="settings-editor__field">
+    <span class="settings-editor__label">${escapeHtml(label)}</span>
+    <input class="settings-editor__input" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder || "")}" ${dataAttr} ${attrs}>
+  </label>`;
+}
+
+function settingsEditorSelectField(label, input, options) {
+  const inputEl = input();
+  const value = inputEl?.value || "";
+  const fieldName = inputEl?.name || "";
+  const dataAttr = fieldName ? `data-field="${escapeHtml(fieldName)}"` : "";
+  return `<label class="settings-editor__field">
+    <span class="settings-editor__label">${escapeHtml(label)}</span>
+    <select class="settings-editor__input" ${dataAttr}>
+      ${options.map((opt) => `<option value="${escapeHtml(opt.value)}"${opt.value === value ? " selected" : ""}>${escapeHtml(opt.label)}</option>`).join("")}
+    </select>
+  </label>`;
+}
+
+function syncSettingsEditorToForm() {
+  const editor = document.querySelector(".settings-editor");
+  if (!editor) return;
+  editor.querySelectorAll("[data-field]").forEach((input) => {
+    const fieldName = input.dataset.field;
+    if (!fieldName) return;
+    const target = settingsForm?.elements?.namedItem(fieldName);
+    if (target) {
+      target.value = input.value;
+      markFieldEdited(target);
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+  editor.querySelectorAll("[data-toggle-id]").forEach((checkbox) => {
+    const toggle = document.getElementById(checkbox.dataset.toggleId);
+    if (toggle) {
+      toggle.checked = checkbox.checked;
+      toggle.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  });
+  syncAllBrokerTopicModes();
+  persistCurrentStep4Settings();
+  updateBrokerTopicPreviews();
+  buildCommandPreview();
+}
+
+function settingsEditorTopicRoot(slot, brokerPrefix) {
+  const toggleId = brokerDefaultTopicToggleId(slot);
+  const toggle = document.getElementById(toggleId);
+  const topicRootInput = getBrokerFieldInput(slot, "topicRoot");
+  const topicRootValue = topicRootInput?.value || "";
+  const iataInput = getBrokerFieldInput(slot, "iata");
+  const defaultTopic = buildDefaultPacketsTopic(iataInput?.value || "", currentTopicPublicKey());
+
+  const isDefault = toggle?.checked;
+  const topicRootFieldName = brokerFormFieldName(slot, "topicRoot");
+
+  return `
+    <label class="settings-editor__field">
+      <span class="settings-editor__label">Topic Root</span>
+      <label class="settings-editor__checkbox">
+        <input type="checkbox" data-toggle-id="${escapeHtml(toggleId)}" ${isDefault ? "checked" : ""}>
+        Use MeshCore default (${escapeHtml(defaultTopic)})
+      </label>
+      <input class="settings-editor__input settings-editor__topic-root" value="${escapeHtml(isDefault ? defaultTopic : topicRootValue)}" placeholder="Custom topic root" data-field="${escapeHtml(topicRootFieldName)}" ${isDefault ? "disabled" : ""}>
+    </label>`;
+}
+
+function buildSettingsEditorHtml() {
+  const formData = settingsForm ? new FormData(settingsForm) : new FormData();
+  const brokerCount = activeLogicalBrokerCount(formData, UI_MODES.SIMPLE);
+
+  let brokerSections = "";
+  for (let li = 1; li <= brokerCount; li += 1) {
+    const slot = logicalBrokerMainSlot(li);
+    brokerSections += `<div class="settings-editor__section">
+      <h3>MQTT Broker ${li}</h3>
+      ${settingsEditorField("URI", () => getBrokerFieldInput(slot, "uri"), "mqtt://host:1883")}
+      ${settingsEditorField("Username", () => getBrokerFieldInput(slot, "username"), "Optional")}
+      ${settingsEditorField("Password", () => getBrokerFieldInput(slot, "password"), "Optional", 'type="password"')}
+      ${settingsEditorTopicRoot(slot)}
+      ${settingsEditorField("IATA", () => getBrokerFieldInput(slot, "iata"), "Optional")}
+      ${settingsEditorSelectField("Retain Status", () => getBrokerFieldInput(slot, "retainStatus"), [
+        { value: "0", label: "Off" },
+        { value: "1", label: "On" }
+      ])}
+    </div>`;
+  }
+
+  return `
+    <div class="settings-editor">
+      <div class="settings-editor__sections">
+        <div class="settings-editor__section">
+          <h3>Identity</h3>
+          ${settingsEditorField("Repeater Name", () => repeaterNameInput, "e.g. UKMesh-Repeater")}
+          ${settingsEditorField("Private Key", () => privateKeyInput, "128 hex chars", 'type="password"')}
+        </div>
+        <div class="settings-editor__section">
+          <h3>Access & Location</h3>
+          ${settingsEditorField("Guest Password", () => guestPasswordInput, "15 chars max", 'type="password"')}
+          ${settingsEditorField("Admin Password", () => adminPasswordInput, "15 chars max", 'type="password"')}
+          ${settingsEditorField("Latitude", () => deviceLatInput, "Optional")}
+          ${settingsEditorField("Longitude", () => deviceLonInput, "Optional")}
+        </div>
+        <div class="settings-editor__section">
+          <h3>WiFi</h3>
+          ${settingsEditorField("SSID", () => settingsForm.elements.namedItem("wifiSsid"), "WiFi network name")}
+          ${settingsEditorField("Password", () => settingsForm.elements.namedItem("wifiPassword"), "WiFi password", 'type="password"')}
+        </div>
+        ${brokerSections}
+      </div>
+      <div class="guided-actions">
+        ${guidedActionButton("Apply changes", "edit-apply")}
+        ${guidedActionButton("Download backup", "download-backup", "secondary")}
+        ${guidedActionButton("Start again", "restart", "ghost")}
+      </div>
+    </div>`;
+}
+
+function guidedTopbar(metaLabel) {
+  if (!currentIntent) {
+    return `<div class="guided-console__meta">${escapeHtml(metaLabel)}</div>`;
+  }
+  return `<div class="guided-console__topbar">
+    ${guidedBackButton()}
+    <div class="guided-console__meta">${escapeHtml(metaLabel)}</div>
+  </div>`;
+}
+
+function formatGuidedFieldValue(value, { sensitive = false, options = null } = {}) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "No value loaded yet";
+  if (options) {
+    const match = options.find((opt) => opt.value === normalized);
+    return match ? match.label : normalized;
+  }
+  if (!sensitive) return normalized;
+  return normalized.length <= 4 ? "Saved value present" : `${normalized.slice(0, 2)}...${normalized.slice(-2)}`;
+}
+
+function setGuidedMqttBrokerCount(count) {
+  guidedMqttBrokerCount = Math.max(1, Math.min(LOGICAL_MQTT_BROKER_MAX, count));
+  if (additionalBrokerCountInput) {
+    additionalBrokerCountInput.value = String(guidedMqttBrokerCount - 1);
+    markFieldEdited(additionalBrokerCountInput);
+  }
+  updateAdditionalBrokerVisibility();
+  persistCurrentStep4Settings();
+  buildCommandPreview();
+}
+
+function renderGuidedConsole() {
+  if (!guidedConsole) return;
+  const stepLabel = guidedStepLabel();
+
+  if (!currentIntent) {
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar("Start")}
+        <h2>What do you want to do?</h2>
+        <div class="guided-choices">
+          <button class="guided-choice" type="button" data-guide-intent="${INTENTS.FRESH}">New device</button>
+          <button class="guided-choice" type="button" data-guide-intent="${INTENTS.UPDATE}">Update firmware</button>
+          <button class="guided-choice" type="button" data-guide-intent="${INTENTS.RESTORE}">Restore backup</button>
+          <button class="guided-choice" type="button" data-guide-intent="${INTENTS.BACKUP}">Backup device</button>
+          <button class="guided-choice" type="button" data-guide-intent="${INTENTS.VIEW_SETTINGS}">View / edit settings</button>
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (!guidedReadComplete) {
+    const restore = currentIntent === INTENTS.RESTORE;
+    const backupOnly = currentIntent === INTENTS.BACKUP;
+    const viewSettings = currentIntent === INTENTS.VIEW_SETTINGS;
+    const fresh = currentIntent === INTENTS.FRESH;
+    const skipLabel = fresh ? "Skip, this is a new device" : "Skip, this is an existing device";
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar(stepLabel)}
+        <h2>${viewSettings ? "Read device settings" : backupOnly ? "Capture device backup" : restore ? "Load backup or read device info" : "Read device info"}</h2>
+        <p>${guidedBusyMessage ? escapeHtml(guidedBusyMessage) : viewSettings ? "Connect the device to read its current settings before editing." : backupOnly ? "Connect the device and capture its current settings to download as a backup file." : restore ? "Upload a backup file, or read the attached device if this is the source unit." : "Connect the device and capture its current settings before moving on."}</p>
+        ${guidedBusyMessage
+          ? `<div class="guided-working">Working...</div>`
+          : `<div class="guided-actions">
+              ${guidedActionButton("Read device info", "read-device")}
+              ${restore || backupOnly || viewSettings ? guidedActionButton("Upload backup file", "upload-backup", "secondary") : ""}
+              ${backupOnly || viewSettings ? "" : guidedActionButton(skipLabel, "skip-read", "secondary")}
+            </div>`}
+      </div>`;
+    return;
+  }
+
+  if (currentIntent === INTENTS.BACKUP) {
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar("Done")}
+        <h2>Backup captured</h2>
+        <p>Device settings have been read. Download the backup file or start again.</p>
+        <div class="guided-actions">
+          ${guidedActionButton("Download backup file", "download-backup")}
+          ${guidedActionButton("Start again", "restart", "secondary")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (currentIntent === INTENTS.VIEW_SETTINGS) {
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar("Settings")}
+        ${guidedBusyMessage
+          ? `<div class="guided-working">Working...</div>`
+          : buildSettingsEditorHtml()}
+      </div>`;
+    return;
+  }
+
+  if (!currentBoard || !boardSelectionConfirmed) {
+    const options = firmwareData.boards.map((board) =>
+      `<option value="${escapeHtml(board.id)}"${currentBoard?.id === board.id ? " selected" : ""}>${escapeHtml(board.label)}</option>`
+    ).join("");
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar(stepLabel)}
+        <h2>Select your board</h2>
+        <p>Pick the exact board you are flashing.</p>
+        <div class="guided-field">
+          <select class="guided-input" id="guided-board-select">${options}</select>
+        </div>
+        <div class="guided-actions">
+          ${guidedActionButton("Use this board", "confirm-board")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (!guidedBranchConfirmed) {
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar(stepLabel)}
+        <h2>Main or dev firmware?</h2>
+        <p>Main is stable. Dev is experimental and should only be used when you specifically need it.</p>
+        <div class="guided-actions">
+          ${guidedActionButton("Main firmware", "branch-main")}
+          ${guidedActionButton("Dev firmware", "branch-dev", "secondary")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (!flashComplete) {
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar(stepLabel)}
+        <h2>Choose flash type</h2>
+        <p>${escapeHtml(currentBoard.label)} on ${currentFirmwareBranch.toUpperCase()} firmware. Update preserves settings where possible. Full flash is for fresh installs or recovery.</p>
+        <div class="guided-actions">
+          ${guidedActionButton("Flash update only", "flash-update")}
+          ${guidedActionButton("Flash full firmware", "flash-full", "secondary")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (guidedFlashIsUpdate) {
+    configApplied = true;
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar("Done")}
+        <h2>Device updated</h2>
+        <p>Firmware update flashed — settings are preserved on the device.</p>
+        <div class="guided-actions">
+          ${guidedActionButton("Start again", "restart", "secondary")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (!serialConnected) {
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar(stepLabel)}
+        <h2>Reconnect serial</h2>
+        <p>${guidedBusyMessage ? escapeHtml(guidedBusyMessage) : "Flash complete. The device has rebooted — reconnect serial to continue with configuration."}</p>
+        ${guidedBusyMessage
+          ? `<div class="guided-working">Working...</div>`
+          : `<div class="guided-actions">
+              ${guidedActionButton("Connect serial", "reconnect-serial")}
+            </div>`}
+      </div>`;
+    return;
+  }
+
+  const fields = guidedConfigFields();
+  if (guidedConfigIndex < fields.length) {
+    const field = fields[guidedConfigIndex];
+    const input = field.input();
+    const value = input?.value || "";
+    const valueLabel = formatGuidedFieldValue(value, { sensitive: field.sensitive, options: field.options });
+    const fieldInput = field.options
+      ? `<select class="guided-input" id="guided-config-value">${field.options.map((opt) => `<option value="${escapeHtml(opt.value)}"${opt.value === value ? " selected" : ""}>${escapeHtml(opt.label)}</option>`).join("")}</select>`
+      : `<input class="guided-input" id="guided-config-value" type="${field.sensitive ? "password" : "text"}" value="${escapeHtml(value)}" placeholder="${escapeHtml(field.placeholder || "")}">`;
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar(`${stepLabel} ${guidedConfigIndex + 1}/${fields.length}`)}
+        <h2>${escapeHtml(field.label)}</h2>
+        <p>${field.required ? "Required setting." : "Optional setting. Leave blank or skip if you do not use it."}</p>
+        <div class="guided-field">
+          <span class="guided-field__label">Current loaded value</span>
+          <span class="guided-field__value">${escapeHtml(valueLabel)}</span>
+          ${fieldInput}
+        </div>
+        <div class="guided-actions">
+          ${guidedActionButton("Save and next", "save-config")}
+          ${field.canAddAnotherMqtt ? guidedActionButton("Save and add another MQTT", "save-add-mqtt", "secondary") : ""}
+          ${field.required ? "" : guidedActionButton("Skip", "skip-config", "ghost")}
+        </div>
+      </div>`;
+    return;
+  }
+
+  if (!configApplied) {
+    guidedConsole.innerHTML = `
+      <div class="guided-console__shell">
+        ${guidedTopbar(stepLabel)}
+        <h2>Apply configuration</h2>
+        <p>${guidedBusyMessage ? escapeHtml(guidedBusyMessage) : "Connect serial, send the settings, and reboot the device."}</p>
+        ${guidedBusyMessage
+          ? `<div class="guided-working">Working...</div>`
+          : `<div class="guided-actions">
+              ${guidedActionButton(serialConnected ? "Apply settings" : "Connect serial and apply", "apply-settings")}
+            </div>`}
+      </div>`;
+    return;
+  }
+
+  guidedConsole.innerHTML = `
+    <div class="guided-console__shell">
+      ${guidedTopbar("Done")}
+      <h2>Device configured</h2>
+      <p>The flash and configuration flow is complete.</p>
+      <div class="guided-actions">
+        ${guidedActionButton("Start again", "restart", "secondary")}
+      </div>
+    </div>`;
+}
+
+async function setGuidedFirmwareBranch(branch) {
+  const selectedBoardId = currentBoard?.id || "";
+  if (branch === "dev") {
+    const proceed = window.confirm("Dev firmware is experimental and may be unstable. Continue?");
+    if (!proceed) return;
+    try {
+      window.localStorage.setItem(DEV_WARNING_SHOWN_KEY, "true");
+    } catch (e) {}
+  }
+  currentFirmwareBranch = branch;
+  if (firmwareBranchSelect) firmwareBranchSelect.value = branch;
+  try {
+    window.localStorage.setItem(FIRMWARE_BRANCH_STORAGE_KEY, branch);
+  } catch (e) {}
+  appendLog(`Firmware branch changed to: ${branch}`);
+  await loadFirmwareDataForBranch(branch);
+  const refreshedBoard = firmwareData.boards.find((board) => board.id === selectedBoardId);
+  if (refreshedBoard) {
+    setBoardDetails(refreshedBoard, { userSelected: true });
+  }
+  guidedBranchConfirmed = true;
+  setActiveStep("flash-firmware");
+  renderGuidedConsole();
+}
+
+function saveGuidedConfigField({ render = true } = {}) {
+  const fields = guidedConfigFields();
+  const field = fields[guidedConfigIndex];
+  const source = document.getElementById("guided-config-value");
+  const target = field?.input();
+  if (!field || !target || !source) return false;
+  const value = source.value.trim();
+  if (field.required && !value) {
+    showToast(`${field.label} is required`, "error");
+    return false;
+  }
+  target.value = value;
+  markFieldEdited(target);
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+  syncAllBrokerTopicModes();
+  updateAdditionalBrokerVisibility();
+  persistCurrentStep4Settings();
+  updateBrokerTopicPreviews();
+  buildCommandPreview();
+  guidedConfigIndex += 1;
+  if (render) renderGuidedConsole();
+  return true;
+}
+
+function goBackGuidedStep() {
+  if (!currentIntent) return;
+  if (configApplied) {
+    configApplied = false;
+    renderGuidedConsole();
+    return;
+  }
+  if (guidedConfigIndex > 0) {
+    guidedConfigIndex -= 1;
+    renderGuidedConsole();
+    return;
+  }
+  if (flashComplete) {
+    flashComplete = false;
+    setActiveStep("flash-firmware");
+    renderGuidedConsole();
+    return;
+  }
+  if (guidedBranchConfirmed) {
+    guidedBranchConfirmed = false;
+    setActiveStep("choose-board");
+    renderGuidedConsole();
+    return;
+  }
+  if (boardSelectionConfirmed) {
+    boardSelectionConfirmed = false;
+    setActiveStep("choose-board");
+    renderGuidedConsole();
+    return;
+  }
+  if (capturedDeviceInfo || backupSkipped) {
+    backupSkipped = false;
+    capturedDeviceInfo = null;
+    guidedReadComplete = false;
+    guidedBusyMessage = "";
+    setActiveStep("read-device");
+    renderGuidedConsole();
+    return;
+  }
+  currentIntent = null;
+  saveIntent(null);
+  uiMode = null;
+  saveUiMode(null);
+  updateWorkflowModeUi();
+}
+
+function showToast(message, type = "success") {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  const toast = document.createElement("div");
+  toast.className = `toast toast--${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  window.setTimeout(() => {
+    toast.remove();
+  }, 2800);
+}
+
 function setActiveStep(stepId) {
   if (uiMode && stepId === null) return;
   if (stepId !== null && !STEP_ORDER.includes(stepId)) return;
   activeStepId = stepId;
+  document.body.dataset.activeStep = stepId || "";
   stepPanels.forEach((panel) => {
     const isActive = panel.id === stepId;
     panel.classList.toggle("step-panel--active", isActive);
@@ -805,18 +1805,27 @@ function setActiveStep(stepId) {
       header.setAttribute("aria-expanded", isActive ? "true" : "false");
     }
   });
+  if (stepId === "device-settings") {
+    showStepContinue("device-settings", "Settings ready — continue to apply");
+  }
   updateAdvancedTabs();
   updateNavActionButton();
+  updateStepper(stepId);
+  if (uiMode === UI_MODES.SIMPLE && stepId) {
+    const activePanel = document.getElementById(stepId);
+    window.requestAnimationFrame(() => {
+      activePanel?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 }
 
 function recommendedStepId() {
-  if (!uiMode) return null;
-  if (!capturedDeviceInfo) return "read-device";
+  if (!uiMode || !currentIntent) return null;
+  const step1Done = capturedDeviceInfo || backupSkipped;
+  if (!step1Done) return "read-device";
   if (!currentBoard || !boardSelectionConfirmed) return "choose-board";
   if (!flashComplete) return "flash-firmware";
-  if (!configApplied) {
-    return serialConnected ? "mqtt-settings" : "device-settings";
-  }
+  if (!configApplied) return "device-settings";
   return "configure-device";
 }
 
@@ -888,18 +1897,19 @@ function renderCapturedDeviceInfo(info) {
     ? mqttUris.join(" | ")
     : formatCapturedValue(info?.mqttUri || "");
 
-  setText(capturedName, nameValue);
-  setText(capturedLat, latValue);
-  setText(capturedLon, lonValue);
-  setText(capturedPrivateKey, keyValue);
-  setText(capturedGuestPassword, guestPasswordValue);
-  setText(capturedWifiSsid, wifiSsidValue);
-  setText(capturedMqttUri, mqttUriValue);
-  setText(prefillName, nameValue);
-  setText(prefillLat, latValue);
-  setText(prefillLon, lonValue);
-  setText(prefillPrivateKey, keyValue);
+  renderCaptureValue(capturedName, nameValue);
+  renderCaptureValue(capturedLat, latValue);
+  renderCaptureValue(capturedLon, lonValue);
+  renderCaptureValue(capturedPrivateKey, keyValue);
+  renderCaptureValue(capturedGuestPassword, guestPasswordValue);
+  renderCaptureValue(capturedWifiSsid, wifiSsidValue);
+  renderCaptureValue(capturedMqttUri, mqttUriValue);
+  renderCaptureValue(prefillName, nameValue);
+  renderCaptureValue(prefillLat, latValue);
+  renderCaptureValue(prefillLon, lonValue);
+  renderCaptureValue(prefillPrivateKey, keyValue);
   setText(capturedMeta, formatCapturedTimestamp(info?.capturedAt || ""));
+  renderBackupSummary(info);
   updateBackupExportAvailability();
 }
 
@@ -960,10 +1970,41 @@ function loadStep4Settings(boardId) {
   }
 }
 
+function wasFieldEdited(input) {
+  return Boolean(input?.dataset?.userEdited === "true");
+}
+
+function markFieldEdited(input) {
+  if (!input?.dataset) return;
+  input.dataset.userEdited = "true";
+}
+
+function clearSettingsFormEditedState() {
+  if (!settingsForm) return;
+  Array.from(settingsForm.querySelectorAll("input, select, textarea")).forEach((input) => {
+    if (input?.dataset) {
+      delete input.dataset.userEdited;
+    }
+  });
+}
+
+function setFormInputValue(input, value, { preserveEdited = false, fallback = "" } = {}) {
+  if (!input || typeof input.value !== "string") return;
+  if (preserveEdited && wasFieldEdited(input)) return;
+  input.value = value || fallback;
+}
+
+function setFormInputChecked(input, checked, { preserveEdited = false } = {}) {
+  if (!input) return;
+  if (preserveEdited && wasFieldEdited(input)) return;
+  input.checked = Boolean(checked);
+}
+
 function resetSettingsFormForBoard() {
   if (!settingsForm) return;
 
   settingsForm.reset();
+  clearSettingsFormEditedState();
 
   for (let index = 1; index <= MQTT_MAX_BROKERS; index += 1) {
     const topicRootInput = getBrokerTopicRootInput(index);
@@ -977,15 +2018,15 @@ function resetSettingsFormForBoard() {
   updateBrokerTopicPreviews();
 }
 
-function applySavedStep4SettingsToForm(settings) {
+function applySavedStep4SettingsToForm(settings, { preserveEdited = false } = {}) {
   if (!settings) return;
 
-  repeaterNameInput.value = settings.repeaterName || repeaterNameInput.value || "";
-  privateKeyInput.value = settings.privateKey || privateKeyInput.value || "";
-  guestPasswordInput.value = settings.guestPassword || guestPasswordInput.value || "";
-  adminPasswordInput.value = settings.adminPassword || adminPasswordInput.value || "";
-  deviceLatInput.value = settings.deviceLat || deviceLatInput.value || "";
-  deviceLonInput.value = settings.deviceLon || deviceLonInput.value || "";
+  setFormInputValue(repeaterNameInput, settings.repeaterName, { preserveEdited, fallback: repeaterNameInput.value || "" });
+  setFormInputValue(privateKeyInput, settings.privateKey, { preserveEdited, fallback: privateKeyInput.value || "" });
+  setFormInputValue(guestPasswordInput, settings.guestPassword, { preserveEdited, fallback: guestPasswordInput.value || "" });
+  setFormInputValue(adminPasswordInput, settings.adminPassword, { preserveEdited, fallback: adminPasswordInput.value || "" });
+  setFormInputValue(deviceLatInput, settings.deviceLat, { preserveEdited, fallback: deviceLatInput.value || "" });
+  setFormInputValue(deviceLonInput, settings.deviceLon, { preserveEdited, fallback: deviceLonInput.value || "" });
 
   const fieldMap = {
     wifiSsid: "wifiSsid",
@@ -997,13 +2038,11 @@ function applySavedStep4SettingsToForm(settings) {
   Object.entries(fieldMap).forEach(([key, fieldName]) => {
     const input = settingsForm.elements.namedItem(fieldName);
     if (!input) return;
-    if (typeof input.value === "string") {
-      input.value = settings[key] || input.value || "";
-    }
+    setFormInputValue(input, settings[key], { preserveEdited, fallback: input.value || "" });
   });
 
   if (additionalBrokerCountInput) {
-    additionalBrokerCountInput.value = String(sanitizeAdditionalBrokerCount(settings.additionalBrokerCount));
+    setFormInputValue(additionalBrokerCountInput, String(sanitizeAdditionalBrokerCount(settings.additionalBrokerCount)), { preserveEdited, fallback: additionalBrokerCountInput.value || "0" });
   }
 
   const brokers = Array.isArray(settings.brokers)
@@ -1021,14 +2060,13 @@ function applySavedStep4SettingsToForm(settings) {
     if (!toggle) return;
     const statusSlot = logicalBrokerStatusSlot(offset + 1);
     const broker = brokers.find((item) => item.index === statusSlot);
-    toggle.checked = Boolean(broker?.enabled || broker?.uri || broker?.topicRoot || broker?.iata || broker?.username || broker?.password);
+    setFormInputChecked(toggle, Boolean(broker?.enabled || broker?.uri || broker?.topicRoot || broker?.iata || broker?.username || broker?.password), { preserveEdited });
   });
 
   brokers.forEach((broker) => {
     ["uri", "username", "password", "topicRoot", "iata", "retainStatus"].forEach((key) => {
       const input = getBrokerFieldInput(broker.index, key);
-      if (!input || typeof input.value !== "string") return;
-      input.value = broker[key] || (key === "retainStatus" ? "0" : "");
+      setFormInputValue(input, broker[key], { preserveEdited, fallback: key === "retainStatus" ? "0" : "" });
     });
   });
   syncAllBrokerDefaultTopicTogglesFromValues();
@@ -1043,13 +2081,13 @@ function persistCurrentStep4Settings() {
   updateBackupExportAvailability();
 }
 
-function applyCapturedDeviceInfoToForm(info) {
+function applyCapturedDeviceInfoToForm(info, { preserveEdited = false } = {}) {
   if (!info) return;
-  repeaterNameInput.value = info.name || "";
-  privateKeyInput.value = info.privateKey || "";
-  guestPasswordInput.value = info.guestPassword || "";
-  deviceLatInput.value = info.lat || "";
-  deviceLonInput.value = info.lon || "";
+  setFormInputValue(repeaterNameInput, info.name, { preserveEdited });
+  setFormInputValue(privateKeyInput, info.privateKey, { preserveEdited });
+  setFormInputValue(guestPasswordInput, info.guestPassword, { preserveEdited });
+  setFormInputValue(deviceLatInput, info.lat, { preserveEdited });
+  setFormInputValue(deviceLonInput, info.lon, { preserveEdited });
 
   const capturedFieldMap = {
     wifiSsid: "wifiSsid",
@@ -1062,12 +2100,12 @@ function applyCapturedDeviceInfoToForm(info) {
     const input = settingsForm.elements.namedItem(fieldName);
     if (!input) return;
     if (typeof input.value === "string" && info[key]) {
-      input.value = info[key];
+      setFormInputValue(input, info[key], { preserveEdited });
     }
   });
 
   if (additionalBrokerCountInput) {
-    additionalBrokerCountInput.value = String(Math.max(0, highestConfiguredAdditionalBrokerIndex(info) - 1));
+    setFormInputValue(additionalBrokerCountInput, String(Math.max(0, highestConfiguredAdditionalBrokerIndex(info) - 1)), { preserveEdited });
   }
 
   const brokers = Array.isArray(info.brokers)
@@ -1085,14 +2123,13 @@ function applyCapturedDeviceInfoToForm(info) {
     if (!toggle) return;
     const statusSlot = logicalBrokerStatusSlot(offset + 1);
     const broker = brokers.find((item) => item.index === statusSlot);
-    toggle.checked = Boolean(broker?.enabled || broker?.uri || broker?.topicRoot || broker?.iata || broker?.username || broker?.password);
+    setFormInputChecked(toggle, Boolean(broker?.enabled || broker?.uri || broker?.topicRoot || broker?.iata || broker?.username || broker?.password), { preserveEdited });
   });
 
   brokers.forEach((broker) => {
     ["uri", "username", "password", "topicRoot", "iata", "retainStatus"].forEach((key) => {
       const input = getBrokerFieldInput(broker.index, key);
-      if (!input || typeof input.value !== "string") return;
-      input.value = broker[key] || (key === "retainStatus" ? "0" : "");
+      setFormInputValue(input, broker[key], { preserveEdited, fallback: key === "retainStatus" ? "0" : "" });
     });
   });
   syncAllBrokerDefaultTopicTogglesFromValues();
@@ -1188,16 +2225,17 @@ function buildBackupFileContents() {
 }
 
 function downloadBackupFile() {
-  if (!currentBoard) {
-    throw new Error("Choose a board before exporting a backup");
-  }
   const blob = new Blob([buildBackupFileContents()], { type: "text/plain;charset=utf-8" });
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  const safeBoardId = currentBoard.id.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const rawName = capturedDeviceInfo?.name
+    || repeaterNameInput?.value?.trim()
+    || currentBoard?.id
+    || "device";
+  const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   const timestamp = new Date().toISOString().replace(/[:]/g, "-");
   anchor.href = url;
-  anchor.download = `${safeBoardId}-backup-${timestamp}.txt`;
+  anchor.download = `${safeName}-backup-${timestamp}.txt`;
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
@@ -1223,6 +2261,7 @@ function setBoardDetails(board, { userSelected = false } = {}) {
   hardwareCheck.textContent = board.hardwareStatus;
   artifactFullName.textContent = board.artifacts.full;
   artifactUpdateName.textContent = board.artifacts.update || board.artifacts.full;
+  renderBoardNotes(board);
   capturedDeviceInfo = loadCapturedDeviceInfo(board.id);
   savedStep4Settings = loadStep4Settings(board.id);
   resetSettingsFormForBoard();
@@ -1237,14 +2276,17 @@ function setBoardDetails(board, { userSelected = false } = {}) {
     applySavedStep4SettingsToForm(savedStep4Settings);
   }
   updateBackupExportAvailability();
-  syncActiveStep(capturedDeviceInfo ? "choose-board" : "read-device", { force: true });
+  // On page load (userSelected=false), always start at step 1 regardless of stored state.
+  // Only auto-advance past step 1 if the user has explicitly selected a board this session.
+  syncActiveStep(userSelected && guidedReadComplete ? "choose-board" : "read-device", { force: true });
+  if (userSelected && board) {
+    showStepContinue("choose-board", `${board.label} selected — continue to flash firmware`);
+  }
   buildCommandPreview();
   updateBrokerTopicPreviews();
-
-  const flashReady = Boolean(board.artifactBase && board.chipFamily);
-  flashButton.disabled = !flashReady || flashingNow;
-  updateButton.disabled = !flashReady || flashingNow;
+  updatePrimaryActionAvailability();
   renderBoardOptions();
+  renderGuidedConsole();
 }
 
 async function loadFirmwareDataForBranch(branch) {
@@ -1400,13 +2442,20 @@ function updateSerialButton() {
   const text = serialConnected ? "Connected" : "Connect Serial";
   if (serialButton) serialButton.textContent = text;
   if (navSerialButton) navSerialButton.textContent = text;
+  if (applyConnectSerialButton) applyConnectSerialButton.textContent = text;
+  if (serialConnected) {
+    const b1 = document.getElementById("reconnect-banner-flash");
+    const b2 = document.getElementById("reconnect-banner-config");
+    if (b1) b1.hidden = true;
+    if (b2) b2.hidden = true;
+  }
 }
 
 function updateNavActionButton() {
   if (!navActionButton) return;
 
-  // Only show on MQTT step, applies all settings (device + wifi + mqtt)
-  if (activeStepId === "mqtt-settings") {
+  // Only show on Configure step, applies all settings (device + wifi + mqtt)
+  if (activeStepId === "device-settings") {
     navActionButton.textContent = "Apply All Settings";
     navActionButton.hidden = false;
     navActionButton.dataset.action = "all";
@@ -1449,13 +2498,23 @@ async function requestPreferredPort() {
     const knownPorts = await navigator.serial.getPorts();
     const matchingPort = knownPorts.find((port) => samePortInfo(port.getInfo(), preferredSerialPortInfo));
     if (matchingPort) {
-      appendLog("Reusing the previously flashed serial port.");
-      return matchingPort;
+      try {
+        await matchingPort.open({ baudRate: 115200 });
+        const usable = matchingPort.writable && matchingPort.readable;
+        await matchingPort.close();
+        if (usable) {
+          appendLog("Reusing the previously flashed serial port.");
+          return matchingPort;
+        }
+      } catch (_err) {
+        // Port is not actually connected — fall through to chooser
+      }
+      appendLog("Previously flashed serial port is no longer usable. Showing all serial ports.");
+      preferredSerialPortInfo = null;
     }
+    appendLog("Previously used serial port is not available. Showing all serial ports.");
   }
-
-  const filters = preferredSerialPortInfo ? [preferredSerialPortInfo] : undefined;
-  return navigator.serial.requestPort(filters ? { filters } : undefined);
+  return navigator.serial.requestPort();
 }
 
 function pushSerialLine(line) {
@@ -1624,17 +2683,17 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
       throw new Error(`Broker ${index} retain status needs a topic root ending in /packets`);
     }
   });
-  const enabledBrokers = brokers.filter((broker) => broker.enabled);
-  if (requireMqtt && !brokers[0].uri) {
-    throw new Error("Primary MQTT URI is required");
-  }
-  if (requireMqtt) {
-    enabledBrokers.forEach((broker) => {
-      if (!broker.uri) {
-        throw new Error(`Broker ${broker.index} URI is required`);
+  const enabledBrokers = brokers.filter((broker) => {
+    if (!broker.enabled) return false;
+    if (!broker.uri) {
+      if (broker.index === 1) {
+        if (requireMqtt) throw new Error("Primary MQTT URI is required");
+        return false;
       }
-    });
-  }
+      return false;
+    }
+    return true;
+  });
 
   const identityCommands = [];
   if (repeaterName) {
@@ -1943,11 +3002,16 @@ async function connectSerial() {
 
   if (serialConnected) {
     await disconnectSerialSession();
-    return;
   }
 
   serialPort = await requestPreferredPort();
   await serialPort.open({ baudRate: 115200 });
+
+  if (!serialPort.writable || !serialPort.readable) {
+    serialPort = null;
+    throw new Error("Serial port opened but is not usable (device may be disconnected)");
+  }
+
   cancelScheduledSerialDisconnect();
   serialConnectedAt = Date.now();
   serialConnected = true;
@@ -1984,11 +3048,28 @@ function stamp() {
 function appendLog(message) {
   const line = document.createElement("p");
   const timestamp = document.createElement("span");
-  timestamp.textContent = stamp();
+  const stampedTime = `[${stamp()}]`;
+  timestamp.textContent = stampedTime;
   line.appendChild(timestamp);
   line.append(document.createTextNode(message));
   logPane.appendChild(line);
   logPane.scrollTop = logPane.scrollHeight;
+
+  if (guidedLogPane) {
+    const guidedLine = document.createElement("p");
+    const guidedTimestamp = document.createElement("span");
+    guidedTimestamp.textContent = stampedTime;
+    guidedLine.appendChild(guidedTimestamp);
+    guidedLine.append(document.createTextNode(message));
+    if (guidedLogPane.children.length === 1 && guidedLogPane.textContent.includes("Waiting for activity")) {
+      guidedLogPane.innerHTML = "";
+    }
+    guidedLogPane.appendChild(guidedLine);
+    while (guidedLogPane.children.length > 120) {
+      guidedLogPane.firstElementChild?.remove();
+    }
+    guidedLogPane.scrollTop = guidedLogPane.scrollHeight;
+  }
 }
 
 function setText(target, value) {
@@ -2041,6 +3122,9 @@ function setFlashProgress(percent, text) {
   flashProgressBar.style.width = `${percent}%`;
   flashProgressPercent.textContent = `${percent}%`;
   flashProgressText.textContent = text;
+  if (flashProgressLabel) {
+    flashProgressLabel.textContent = text;
+  }
 }
 
 function delay(ms) {
@@ -2097,6 +3181,9 @@ async function ensureSerialCliReady() {
     appendLog(`MeshCore CLI ready (${line}).`);
     return;
   } catch (error) {
+    if (/serial\s*port/i.test(error.message)) {
+      throw error;
+    }
     appendLog("No immediate reply to ver. Waiting 20 seconds before continuing.");
     await delay(20000);
     serialCliReady = true;
@@ -2194,8 +3281,15 @@ async function connectBootloaderWithFallback({
       throw error;
     }
 
-    appendLog("Automatic bootloader entry failed because the browser could not toggle serial control lines.");
-    appendLog(`Manual bootloader fallback: hold BOOT on ${boardLabel}, tap RESET, keep BOOT held for 2 seconds, then release.`);
+    appendLog("Automatic bootloader entry failed — browser cannot toggle serial control lines.");
+    window.alert(
+      "Manual bootloader entry required\n\n" +
+      `Please perform these steps on your ${boardLabel}:\n\n` +
+      "1. Hold down the BOOT button\n" +
+      "2. Tap the RESET button\n" +
+      "3. Keep BOOT held for 2 seconds, then release\n\n" +
+      "Click OK when ready and the flasher will retry connecting."
+    );
 
     try {
       await releaseFlashSession(transport, null);
@@ -2509,14 +3603,14 @@ async function captureCurrentDeviceInfo() {
     };
 
     capturedDeviceInfo = info;
-    saveCapturedDeviceInfo(currentBoard.id, info);
+    saveCapturedDeviceInfo(currentBoard?.id || "device", info);
     renderCapturedDeviceInfo(info);
-    applyCapturedDeviceInfoToForm(info);
+    applyCapturedDeviceInfoToForm(info, { preserveEdited: true });
     persistCurrentStep4Settings();
     buildCommandPreview();
     setPanelState(deviceReadState, "Captured", "panel__status--success");
     appendLog("Captured current device info and stored it in this browser for this board.");
-    // Don't auto-switch tabs - let user navigate manually
+    showStepContinue("read-device", "Device backup captured — continue to board selection");
   } finally {
     if (openedHere) {
       await disconnectSerialSession({ silent: true });
@@ -2641,6 +3735,7 @@ async function flashFirmware(kind) {
   }
 
   flashingNow = true;
+  updatePrimaryActionAvailability();
   let port = null;
   let transport = null;
   let flashArtifacts = [];
@@ -2727,6 +3822,8 @@ async function flashFirmware(kind) {
 
     flashComplete = true;
     configApplied = false;
+    const reconnectBannerFlash = document.getElementById("reconnect-banner-flash");
+    if (reconnectBannerFlash) reconnectBannerFlash.hidden = false;
     setPanelState(flashState, "Flashed", "panel__status--success");
     setFlashProgress(100, "Flash complete");
     setText(stateFlash, kind === "full" ? "Full image flashed" : "Update image flashed");
@@ -2738,11 +3835,10 @@ async function flashFirmware(kind) {
     setPanelState(verifyState, "Waiting", "panel__status--idle");
     updateSerialButton();
     appendLog(`Flash completed successfully for ${currentBoard.label}. Reconnect serial, then apply the selected device, WiFi, and MQTT settings.`);
-    // Don't auto-switch tabs - let user navigate manually
+    showStepContinue("flash-firmware", "Firmware flashed — reconnect serial then continue to configure");
   } finally {
     flashingNow = false;
-    flashButton.disabled = !currentBoard?.artifactBase;
-    updateButton.disabled = !currentBoard?.artifactBase;
+    updatePrimaryActionAvailability();
     window.setTimeout(() => {
       releaseFlashSession(transport, port)
         .then(() => {
@@ -2793,25 +3889,205 @@ stepPanels.forEach((panel) => {
   header.removeAttribute("tabindex");
 });
 
-advancedTabButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    setActiveStep(button.dataset.stepTarget);
-  });
+function handleIntentClick(intent) {
+  setUiMode(UI_MODES.SIMPLE, { persist: true });
+  setIntent(intent);
+}
+document.getElementById("intent-fresh-install")?.addEventListener("click", () => handleIntentClick(INTENTS.FRESH));
+document.getElementById("intent-firmware-update")?.addEventListener("click", () => handleIntentClick(INTENTS.UPDATE));
+document.getElementById("intent-restore-backup")?.addEventListener("click", () => handleIntentClick(INTENTS.RESTORE));
+document.getElementById("intent-capture-backup")?.addEventListener("click", () => handleIntentClick(INTENTS.BACKUP));
+document.getElementById("intent-view-settings")?.addEventListener("click", () => handleIntentClick(INTENTS.VIEW_SETTINGS));
+
+document.getElementById("upload-backup-button")?.addEventListener("click", loadBackupFromFile);
+
+document.getElementById("skip-backup-button")?.addEventListener("click", () => {
+  backupSkipped = true;
+  appendLog("Backup step skipped.");
+  showToast("Backup skipped", "success");
+  showStepContinue("read-device", "No backup — continue to board selection");
 });
 
-modeSimpleButton?.addEventListener("click", () => setUiMode(UI_MODES.SIMPLE));
-modeAdvancedButton?.addEventListener("click", () => setUiMode(UI_MODES.ADVANCED));
-sidebarModeSimpleButton?.addEventListener("click", () => setUiMode(UI_MODES.SIMPLE));
-sidebarModeAdvancedButton?.addEventListener("click", () => setUiMode(UI_MODES.ADVANCED));
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-continue-to]");
+  if (!btn) return;
+  const target = btn.dataset.continueTo;
+  if (STEP_ORDER.includes(target)) {
+    setActiveStep(target);
+  }
+});
+
+guidedConsole?.addEventListener("click", async (event) => {
+  const intentButton = event.target.closest("[data-guide-intent]");
+  if (intentButton) {
+    setUiMode(UI_MODES.SIMPLE, { persist: true });
+    setIntent(intentButton.dataset.guideIntent);
+    return;
+  }
+
+  const actionButton = event.target.closest("[data-guide-action]");
+  if (!actionButton) return;
+  const action = actionButton.dataset.guideAction;
+  actionButton.disabled = true;
+
+  try {
+    if (action === "back") {
+      goBackGuidedStep();
+    } else if (action === "read-device") {
+      guidedBusyMessage = "Reading device info... choose the serial port if your browser asks. This can take a moment.";
+      renderGuidedConsole();
+      await captureCurrentDeviceInfo();
+      guidedReadComplete = true;
+      guidedBusyMessage = "";
+      if (currentIntent !== INTENTS.BACKUP && currentIntent !== INTENTS.VIEW_SETTINGS) {
+        setActiveStep("choose-board");
+      }
+    } else if (action === "upload-backup") {
+      loadBackupFromFile();
+    } else if (action === "download-backup") {
+      downloadBackupFile();
+    } else if (action === "edit-apply") {
+      syncSettingsEditorToForm();
+      guidedBusyMessage = "Applying settings to device...";
+      renderGuidedConsole();
+      if (!serialConnected) {
+        await connectSerial();
+      }
+      await applySettings("all");
+      guidedBusyMessage = "";
+    } else if (action === "skip-read") {
+      backupSkipped = true;
+      guidedReadComplete = true;
+      guidedBusyMessage = "";
+      appendLog("Device read skipped for new-device flow.");
+      setActiveStep("choose-board");
+    } else if (action === "confirm-board") {
+      const select = document.getElementById("guided-board-select");
+      const board = firmwareData.boards.find((item) => item.id === select?.value);
+      if (board) {
+        setBoardDetails(board, { userSelected: true });
+        appendLog(`Board selected: ${board.label}`);
+      }
+    } else if (action === "branch-main") {
+      await setGuidedFirmwareBranch("main");
+    } else if (action === "branch-dev") {
+      await setGuidedFirmwareBranch("dev");
+    } else if (action === "flash-full") {
+      const confirmed = window.confirm("Full flash can erase saved settings. Continue?");
+      if (confirmed) {
+        guidedFlashIsUpdate = false;
+        await flashFirmware("full");
+      }
+    } else if (action === "flash-update") {
+      guidedFlashIsUpdate = true;
+      await flashFirmware("update");
+    } else if (action === "save-config") {
+      saveGuidedConfigField();
+    } else if (action === "save-add-mqtt") {
+      if (saveGuidedConfigField({ render: false })) {
+        setGuidedMqttBrokerCount(guidedMqttBrokerCount + 1);
+        renderGuidedConsole();
+      }
+    } else if (action === "skip-config") {
+      guidedConfigIndex += 1;
+    } else if (action === "reconnect-serial") {
+      guidedBusyMessage = "Opening serial chooser. Select the device port.";
+      renderGuidedConsole();
+      await connectSerial();
+      guidedBusyMessage = "";
+    } else if (action === "apply-settings") {
+      guidedBusyMessage = "Opening serial chooser. Select the device port, then settings will be applied.";
+      renderGuidedConsole();
+      appendLog("Connecting serial before applying settings.");
+      await connectSerial();
+      await applySettings("all");
+      guidedBusyMessage = "";
+    } else if (action === "restart") {
+      currentIntent = null;
+      saveIntent(null);
+      uiMode = null;
+      saveUiMode(null);
+      guidedReadComplete = false;
+      guidedBusyMessage = "";
+      guidedBranchConfirmed = false;
+      guidedConfigIndex = 0;
+      flashComplete = false;
+      configApplied = false;
+      guidedFlashIsUpdate = false;
+      updateWorkflowModeUi();
+      return;
+    }
+  } catch (error) {
+    guidedBusyMessage = "";
+    appendLog(`Guided step failed: ${error.message}`);
+    showToast(error.message, "error");
+  } finally {
+    renderGuidedConsole();
+    actionButton.disabled = false;
+  }
+});
+
+guidedConsole?.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest("#guided-config-value");
+  if (!input) return;
+  event.preventDefault();
+  saveGuidedConfigField();
+});
+
+guidedConsole?.addEventListener("input", (event) => {
+  const input = event.target.closest(".settings-editor__input");
+  if (!input || !input.dataset.field) return;
+  const target = settingsForm?.elements?.namedItem(input.dataset.field);
+  if (!target) return;
+  target.value = input.value;
+  markFieldEdited(target);
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+  persistCurrentStep4Settings();
+  updateBrokerTopicPreviews();
+  buildCommandPreview();
+});
+
+guidedConsole?.addEventListener("change", (event) => {
+  const checkbox = event.target.closest("[data-toggle-id]");
+  if (!checkbox) return;
+  const toggle = document.getElementById(checkbox.dataset.toggleId);
+  if (!toggle) return;
+  toggle.checked = checkbox.checked;
+  toggle.dispatchEvent(new Event("change", { bubbles: true }));
+  syncAllBrokerTopicModes();
+
+  const section = checkbox.closest(".settings-editor__section");
+  if (section) {
+    const topicRootInput = section.querySelector(".settings-editor__topic-root");
+    const iataInput = section.querySelector("[data-field$='Iata']");
+    if (topicRootInput) {
+      const brokerInput = settingsForm?.elements?.namedItem(topicRootInput.dataset.field);
+      if (brokerInput) topicRootInput.value = brokerInput.value;
+      topicRootInput.disabled = checkbox.checked;
+      if (checkbox.checked && iataInput) {
+        const defaultTopic = buildDefaultPacketsTopic(iataInput.value || "", currentTopicPublicKey());
+        topicRootInput.value = defaultTopic;
+      }
+    }
+  }
+
+  persistCurrentStep4Settings();
+  updateBrokerTopicPreviews();
+  buildCommandPreview();
+});
 
 Array.from(document.querySelectorAll("#settings-form input, #settings-form select, [form='settings-form']")).forEach((input) => {
-  input.addEventListener("input", () => {
+  const persistSettingsField = () => {
+    markFieldEdited(input);
     syncAllBrokerTopicModes();
     updateAdditionalBrokerVisibility();
     persistCurrentStep4Settings();
     updateBrokerTopicPreviews();
     buildCommandPreview();
-  });
+  };
+  input.addEventListener("input", persistSettingsField);
+  input.addEventListener("change", persistSettingsField);
 });
 
 [1, 2, 3, 4, 5, 6].forEach((index) => {
@@ -2867,12 +4143,15 @@ radioPreset.addEventListener("change", () => {
   } else {
     syncRadioCommand();
   }
+  validateRadioFields({ showErrors: true });
+  updatePrimaryActionAvailability();
   buildCommandPreview();
 });
 
 [radioFrequency, radioBandwidth, radioSf, radioCr].forEach((input) => {
   input.addEventListener("input", () => {
     updateRadioPresetFromInputs();
+    updatePrimaryActionAvailability();
     buildCommandPreview();
   });
 });
@@ -3001,7 +4280,11 @@ manifestButton.addEventListener("click", () => {
 
 serialButton?.addEventListener("click", async () => {
   try {
-    await connectSerial();
+    if (serialConnected) {
+      await disconnectSerialSession();
+    } else {
+      await connectSerial();
+    }
   } catch (error) {
     setPanelState(serialState, "Serial error", "panel__status--error");
     appendLog(`Serial error: ${error.message}`);
@@ -3010,7 +4293,24 @@ serialButton?.addEventListener("click", async () => {
 
 navSerialButton?.addEventListener("click", async () => {
   try {
-    await connectSerial();
+    if (serialConnected) {
+      await disconnectSerialSession();
+    } else {
+      await connectSerial();
+    }
+  } catch (error) {
+    setPanelState(serialState, "Serial error", "panel__status--error");
+    appendLog(`Serial error: ${error.message}`);
+  }
+});
+
+applyConnectSerialButton?.addEventListener("click", async () => {
+  try {
+    if (serialConnected) {
+      await disconnectSerialSession();
+    } else {
+      await connectSerial();
+    }
   } catch (error) {
     setPanelState(serialState, "Serial error", "panel__status--error");
     appendLog(`Serial error: ${error.message}`);
@@ -3085,6 +4385,13 @@ async function applySettings(mode = "all") {
     return;
   }
 
+  if (!serialPort || !serialPort.writable || !serialPort.readable) {
+    serialConnected = false;
+    setPanelState(serialState, "Serial lost", "panel__status--error");
+    appendLog("Serial port is no longer usable. Disconnect and reconnect serial before trying again.");
+    return;
+  }
+
   if (!flashComplete) {
     appendLog("Proceeding with configuration without a flash in this session.");
   }
@@ -3094,11 +4401,13 @@ async function applySettings(mode = "all") {
   resetMqttRuntimeState(mode === "mqtt" ? "Applying" : "Rebooting", mode === "mqtt" ? "Awaiting runtime state" : "Reconnect serial to verify");
 
   try {
-    window.alert(
-      "Make sure the device is turned on and the serial connection is stable.\n\n" +
-      "If needed, press the reset button on the board before continuing.\n\n" +
-      "Keep the board plugged in and avoid disconnecting it while settings are being applied."
-    );
+    if (Date.now() - serialConnectedAt > 10000) {
+      window.alert(
+        "Make sure the device is turned on and the serial connection is stable.\n\n" +
+        "If needed, press the reset button on the board before continuing.\n\n" +
+        "Keep the board plugged in and avoid disconnecting it while settings are being applied."
+      );
+    }
 
     const plan = buildConfigurationPlan({ requireMqtt: mode !== "device-wifi" });
     appendLog(mode === "all" ? "Applying all settings immediately." : mode === "device-wifi" ? "Applying device, radio, and WiFi settings." : "Applying MQTT settings only.");
@@ -3151,10 +4460,13 @@ async function applySettings(mode = "all") {
       setPanelState(verifyState, "Reconnect serial after reboot", "panel__status--idle");
       if (mode === "all") {
         configApplied = true;
+        const reconnectBannerConfig = document.getElementById("reconnect-banner-config");
+        if (reconnectBannerConfig) reconnectBannerConfig.hidden = false;
       }
       scheduleSerialDisconnect(2200, mode === "all"
         ? "Device configuration completed. Waiting for the reboot, then closing the serial session."
         : "Device and WiFi configuration completed. Waiting for the reboot, then closing the serial session.");
+      showToast(mode === "all" ? "All settings sent ✓" : "Device + WiFi sent ✓", "success");
       return;
     }
 
@@ -3179,30 +4491,144 @@ async function applySettings(mode = "all") {
         }
         appendLog(`MQTT status check warning: ${error.message}`);
       }
+      showToast("MQTT settings sent ✓", "success");
     }
   } catch (error) {
     setPanelState(settingsState, "Failed", "panel__status--error");
     appendLog(`Configuration failed: ${error.message}`);
     markApplyFailure();
+    showToast("Apply failed — check serial log", "error");
+    return;
   }
 }
 
 settingsApplyButton?.addEventListener("click", () => applySettings("all"));
 settingsApplyDeviceWifiButton?.addEventListener("click", () => applySettings("device-wifi"));
 settingsApplyMqttButton?.addEventListener("click", () => applySettings("mqtt"));
+
+const settingsApplyAllButton = document.getElementById("settings-apply-all-button");
+settingsApplyAllButton?.addEventListener("click", () => applySettings("all"));
+
 if (configureButton) {
   configureButton.addEventListener("click", () => applySettings("all"));
 }
 
 clearLogButton.addEventListener("click", () => {
   logPane.innerHTML = "";
+  if (guidedLogPane) guidedLogPane.innerHTML = "";
   appendLog("Log cleared.");
+});
+
+// Copy log button
+const copyLogButton = document.getElementById("copy-log-button");
+copyLogButton?.addEventListener("click", () => {
+  if (!navigator.clipboard?.writeText) {
+    showToast("Clipboard unavailable", "error");
+    return;
+  }
+  const lines = Array.from(logPane.querySelectorAll("p")).map((p) => p.textContent).join("\n");
+  navigator.clipboard.writeText(lines).then(() => {
+    showToast("Log copied ✓", "success");
+  }).catch(() => {
+    showToast("Copy failed", "error");
+  });
+});
+
+document.getElementById("guided-clear-log-button")?.addEventListener("click", () => {
+  logPane.innerHTML = "";
+  if (guidedLogPane) guidedLogPane.innerHTML = "";
+  appendLog("Log cleared.");
+});
+
+document.getElementById("guided-copy-log-button")?.addEventListener("click", () => {
+  if (!navigator.clipboard?.writeText) {
+    showToast("Clipboard unavailable", "error");
+    return;
+  }
+  const sourcePane = guidedLogPane || logPane;
+  const lines = Array.from(sourcePane.querySelectorAll("p")).map((p) => p.textContent).join("\n");
+  navigator.clipboard.writeText(lines).then(() => {
+    showToast("Log copied ✓", "success");
+  }).catch(() => {
+    showToast("Copy failed", "error");
+  });
+});
+
+// Reconnect buttons in banners
+document.getElementById("reconnect-flash-button")?.addEventListener("click", () => {
+  navSerialButton?.click();
+});
+document.getElementById("reconnect-config-button")?.addEventListener("click", () => {
+  navSerialButton?.click();
+});
+
+// Eye toggle buttons for password reveal
+document.querySelectorAll(".btn-eye").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const targetId = btn.dataset.eyeTarget;
+    const input = document.getElementById(targetId);
+    if (!input) return;
+    const isPassword = input.type === "password";
+    input.type = isPassword ? "text" : "password";
+    btn.textContent = isPassword ? "🙈" : "👁";
+    btn.setAttribute("aria-label", isPassword ? "Hide private key" : "Reveal private key");
+  });
+});
+
+// Stepper click navigation
+document.getElementById("step-stepper")?.addEventListener("click", (e) => {
+  if (uiMode === UI_MODES.SIMPLE) return;
+  const item = e.target.closest(".step-stepper__item");
+  if (!item) return;
+  const target = item.dataset.stepperTarget;
+  if (target && STEP_ORDER.includes(target)) {
+    setActiveStep(target);
+  }
+});
+
+Object.entries(RADIO_RANGES).forEach(([id, range]) => {
+  const input = document.getElementById(id);
+  if (!input) return;
+  // Ensure error span exists
+  let errorSpan = input.parentElement.querySelector(".field__error");
+  if (!errorSpan) {
+    errorSpan = document.createElement("span");
+    errorSpan.className = "field__error";
+    input.parentElement.appendChild(errorSpan);
+  }
+  input.addEventListener("input", () => {
+    validateRadioField(input, range, { showError: input.classList.contains("has-blurred") });
+    updatePrimaryActionAvailability();
+  });
+  input.addEventListener("blur", () => {
+    input.classList.add("has-blurred");
+    validateRadioField(input, range, { showError: true });
+    updatePrimaryActionAvailability();
+  });
 });
 
 populateBoards();
 evaluateCapabilities();
 applyRadioPreset("EU_UK_RECOMMENDED");
-setUiMode(UI_MODES.ADVANCED);
+updatePrimaryActionAvailability();
+
+// Restore saved session or show mode gate for first-time users
+(function initSession() {
+  const savedIntent = loadIntent();
+  if (savedIntent) {
+    currentIntent = savedIntent;
+    uiMode = UI_MODES.SIMPLE;
+    saveUiMode(UI_MODES.SIMPLE);
+    updateWorkflowModeUi();
+    updateStep1ForIntent();
+    updateFlashPanelForIntent();
+    syncActiveStep(recommendedStepId(), { force: true });
+    buildCommandPreview();
+  } else {
+    uiMode = null;
+    updateWorkflowModeUi();
+  }
+})();
 
 // Initialize firmware branch from storage
 (function initFirmwareBranch() {
@@ -3222,5 +4648,6 @@ updateBrokerTopicPreviews();
 buildCommandPreview();
 updateSerialButton();
 updateBackupExportAvailability();
+updatePrimaryActionAvailability();
 closeBoardMenu();
 appendLog(`Loaded ${firmwareData.boards.length} board definitions.`);
