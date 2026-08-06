@@ -762,7 +762,7 @@ input::placeholder { color: var(--muted); opacity: .45; }
 }
 .board-card__status { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
 .board-card__status.ok { color: var(--success); background: rgba(38,212,104,.12); border: 1px solid rgba(38,212,104,.3); }
-.board-card__status.warn { color: #ffb347; background: rgba(255, 179, 71, .1); border: 1px solid rgba(255, 179, 71, .3); }
+.board-card__status.warn { color: #ffc46b; background: rgba(255, 179, 71, .14); border: 1px solid rgba(255, 179, 71, .45); }
 .board-note {
   margin-top: 10px;
   padding: 8px 10px;

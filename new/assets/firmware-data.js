@@ -61,7 +61,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "Heltec_T190_repeater_",
-      "label": "Heltec T190 repeater ",
+      "label": "Heltec T190 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32",
@@ -75,7 +75,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "heltec_tracker_v2_repeater",
-      "label": "heltec tracker v2 repeater",
+      "label": "Heltec Tracker V2 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32",
@@ -89,7 +89,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "heltec_v4_repeater",
-      "label": "heltec v4 repeater",
+      "label": "Heltec V4 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32-S3",
@@ -103,7 +103,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "heltec_v4_tft_repeater",
-      "label": "heltec v4 tft repeater",
+      "label": "Heltec V4 TFT Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32-S3",
@@ -117,7 +117,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "Heltec_Wireless_Paper_repeater",
-      "label": "Heltec Wireless Paper repeater",
+      "label": "Heltec Wireless Paper Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32",
@@ -131,7 +131,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "Heltec_Wireless_Tracker_repeater",
-      "label": "Heltec Wireless Tracker repeater",
+      "label": "Heltec Wireless Tracker Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32",
@@ -145,7 +145,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "Heltec_WSL3_repeater",
-      "label": "Heltec WSL3 repeater",
+      "label": "Heltec WSL3 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32",
@@ -173,7 +173,7 @@ window.FIRMWARE_DATA = {
     },
     {
       "id": "T_Beam_S3_Supreme_SX1262_repeater",
-      "label": "T Beam S3 Supreme SX1262 repeater",
+      "label": "T-Beam S3 Supreme SX1262 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32-S3",
