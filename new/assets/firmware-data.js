@@ -9,6 +9,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Verified on hardware",
+      "notes": "Native USB-serial-JTAG — to enter flash mode: hold BOOT, tap RESET, release BOOT.",
       "manifestPath": "/firmware/Heltec_v3_repeater/manifest.json",
       "artifactBase": "/firmware/Heltec_v3_repeater/",
       "artifacts": {

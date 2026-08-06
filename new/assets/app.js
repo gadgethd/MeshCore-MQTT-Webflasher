@@ -1178,10 +1178,28 @@
   function populateBoards() {
     if (!boardSelect) return;
     boardSelect.innerHTML = "";
+    const grid = document.getElementById("board-grid");
+    if (grid) grid.innerHTML = "";
     (firmwareData.boards || []).forEach(b => {
       const opt = document.createElement("option");
       opt.value = b.id; opt.textContent = b.label;
       boardSelect.appendChild(opt);
+      if (!grid) return;
+      const verified = String(b.hardwareStatus || "").toLowerCase().includes("verified");
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "board-card";
+      card.dataset.board = b.id;
+      card.setAttribute("role", "radio");
+      card.setAttribute("aria-label", `${b.label} — ${b.chipFamily || ""}`);
+      card.innerHTML =
+        `<span class="board-card__name">${escapeHtml(b.label)}</span>` +
+        `<span class="board-card__meta">` +
+          `<span class="board-card__chip">${escapeHtml(b.chipFamily || "")}</span>` +
+          `<span class="board-card__status ${verified ? "ok" : "warn"}">${verified ? "✓ Verified on hardware" : "Compile validated"}</span>` +
+        `</span>`;
+      card.addEventListener("click", () => { boardSelect.value = b.id; setCurrentBoard(b); });
+      grid.appendChild(card);
     });
     boardSelect.onchange = () => setCurrentBoard((firmwareData.boards || []).find(x => x.id === boardSelect.value));
     if (firmwareData.boards.length) setCurrentBoard(firmwareData.boards[0]);
@@ -1191,14 +1209,22 @@
     currentBoard = b;
     const flashLabel = $("flash-board-label");
     if (flashLabel) flashLabel.textContent = b ? `${b.label} — ${b.firmwareVersion}` : "—";
+    const grid = document.getElementById("board-grid");
+    if (grid) grid.querySelectorAll(".board-card").forEach(c => {
+      const selected = !!b && c.dataset.board === b.id;
+      c.classList.toggle("selected", selected);
+      c.setAttribute("aria-checked", String(selected));
+    });
     if (!boardInfo) return;
     if (!b) { boardInfo.innerHTML = ""; } else {
       const verified = String(b.hardwareStatus || "").toLowerCase().includes("verified");
+      const notes = String(b.notes || "").trim();
       boardInfo.innerHTML =
         `<div><strong>${escapeHtml(b.label)}</strong> — ${escapeHtml(b.firmwareName)} ${escapeHtml(b.firmwareVersion)}</div>` +
         `<div class="muted">${escapeHtml(b.chipFamily)} • ${escapeHtml(b.hardwareStatus || "")}</div>` +
         (verified ? "" :
-          `<div class="board-warning">⚠ This board is compile-validated only — hardware quirks may apply. Flash at your own risk.</div>`);
+          `<div class="board-warning">⚠ This board is compile-validated only — hardware quirks may apply. Flash at your own risk.</div>`) +
+        (notes ? `<div class="board-note">${escapeHtml(notes)}</div>` : "");
     }
     updateDisabledStates();
   }
@@ -1332,6 +1358,14 @@
     expandLog();
     if (!currentBoard) { fail("Select a board first"); return; }
     if (!currentBoard.artifactBase || !currentBoard.chipFamily) { fail("Firmware artifact is not published for this board yet."); return; }
+    if (kind === "full") {
+      const proceed = window.confirm(
+        "Full flash wipes the board — including its MeshCore identity, keys and settings.\n\n" +
+        "Back up your settings first (step 1) or use \"Flash Update Only\" to keep them.\n\n" +
+        "Continue with the full flash?"
+      );
+      if (!proceed) { log("Full flash cancelled."); return; }
+    }
     if (!window.isSecureContext && location.hostname !== "127.0.0.1" && location.hostname !== "localhost") {
       fail("Flashing requires HTTPS or localhost"); return;
     }
@@ -1599,6 +1633,12 @@
     b.setAttribute("aria-expanded", String(!body.hidden));
   }));
 
+  // Browser support notice: Web Serial is Chromium-only — warn early, never block.
+  safe($("btn-notice-dismiss"), b => b.addEventListener("click", () => {
+    const n = $("browser-notice");
+    if (n) n.hidden = true;
+  }));
+
   safe(btnFlashFull, b => b.addEventListener("click", () => flashFirmware("full")));
   safe(btnFlashUpdate, b => b.addEventListener("click", () => flashFirmware("update")));
   safe(btnReconnectFlash, b => b.addEventListener("click", connectSerial));
@@ -1624,6 +1664,10 @@
   /* ── Init ───────────────────────────────────── */
   function init() {
     try {
+      if (!("serial" in navigator) || !window.isSecureContext) {
+        const notice = $("browser-notice");
+        if (notice) notice.hidden = false;
+      }
       if (fwVersion) fwVersion.textContent = maybe((firmwareData.boards && firmwareData.boards[0] && firmwareData.boards[0].firmwareVersion), "v1.16.0");
       populateBoards();
       buildMqttBrokerUI();

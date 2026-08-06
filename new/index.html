@@ -7,11 +7,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=20260808">
+  <link rel="stylesheet" href="assets/styles.css?v=20260809">
 </head>
 <body>
   <div id="toast-container"></div>
   <div class="shell">
+    <div id="browser-notice" class="notice-bar" hidden>
+      <span>This flasher needs <strong>Chrome, Edge or Opera</strong> on desktop — Web Serial isn't available in Firefox or Safari. Brave users: lower Shields for this site.</span>
+      <button type="button" class="btn btn-small" id="btn-notice-dismiss" aria-label="Dismiss">✕</button>
+    </div>
     <header class="top">
       <div class="brand">
         <div class="brand__eyebrow">UKMesh</div>
@@ -74,10 +78,8 @@
       <section class="panel" id="step-2" hidden>
         <h2>2. Choose your board</h2>
         <p class="muted">Pick the exact board you're flashing so we download the right firmware for it.</p>
-        <div class="field">
-          <label for="board-select">Supported board</label>
-          <select id="board-select" class="select"></select>
-        </div>
+        <select id="board-select" class="select" hidden></select>
+        <div id="board-grid" class="board-grid" role="radiogroup" aria-label="Supported boards"></div>
         <div id="board-info" class="board-info"></div>
 
         <div class="nav">
@@ -282,11 +284,15 @@
         <div id="log-pane" class="log__pane"></div>
       </div>
     </section>
+
+    <footer class="foot">
+      <span>Need help? <a href="https://meshcore.io" target="_blank" rel="noopener">MeshCore docs</a> · <a href="https://flasher.ukmesh.com/" target="_blank" rel="noopener">Original flasher</a></span>
+    </footer>
   </div>
 
   <input type="file" id="backup-file" accept=".txt" hidden>
 
-  <script src="assets/firmware-data.js?v=20260808"></script>
-  <script src="assets/app.js?v=20260808"></script>
+  <script src="assets/firmware-data.js?v=20260809"></script>
+  <script src="assets/app.js?v=20260809"></script>
 </body>
 </html>
