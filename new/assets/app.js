@@ -460,7 +460,9 @@
     const line = await runCommandExpectReply(`get ${key}`, (value) => value.includes("->"), timeoutMs);
     const match = line.match(/->\s*(.+)$/);
     const rawValue = match ? match[1].trim() : "";
-    return { line, value: rawValue.replace(/^>\s*/, "") };
+    // Firmware replies to `get` as "  -> > value" — strip the leading ">" marker
+    // (repeated, for safety) so values never carry it into the UI or backup.
+    return { line, value: rawValue.replace(/^(?:>\s*)+/, "") };
   }
 
   async function readOptionalSettingValue(key, timeoutMs = 6000) {
@@ -1074,7 +1076,9 @@
       const colonIdx = line.indexOf(": ");
       if (colonIdx === -1) continue;
       const key = line.substring(0, colonIdx).trim();
-      const value = line.substring(colonIdx + 2);
+      // Backups from older flasher builds can contain get-reply artifacts
+      // ("Name: > MyNode") — strip the leading ">" marker so restores stay clean.
+      const value = line.substring(colonIdx + 2).replace(/^(?:>\s*)+/, "");
 
       if (section === "header") {
         if (key === "Board") result.boardLabel = value;
