@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MeshCore MQTT Flasher</title>
+  <title>MeshCore MQTT Flasher — UKMesh</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/styles.css?v=20260801">
+  <link rel="stylesheet" href="assets/styles.css?v=20260807">
 </head>
 <body>
   <div id="toast-container"></div>
@@ -16,7 +16,7 @@
       <div class="brand">
         <div class="brand__eyebrow">UKMesh</div>
         <h1>MeshCore MQTT Flasher</h1>
-        <p class="brand__tag">Clean setup for MQTT observer repeaters</p>
+        <p class="brand__tag">Flash a LoRa repeater and set up its MQTT link — straight from your browser.</p>
       </div>
       <div class="top__meta">
         <div class="pill">
@@ -28,32 +28,32 @@
       </div>
     </header>
 
-    <div class="progress" id="progress">
+    <nav class="progress" id="progress" aria-label="Wizard steps">
       <div class="progress__steps">
-        <div class="step" data-step="1"><span>1</span><em>Backup</em></div>
-        <div class="step" data-step="2"><span>2</span><em>Board</em></div>
-        <div class="step" data-step="3"><span>3</span><em>Flash</em></div>
-        <div class="step" data-step="4"><span>4</span><em>Configure</em></div>
-        <div class="step" data-step="5"><span>5</span><em>Apply</em></div>
+        <button type="button" class="step" data-step="1"><span>1</span><em>Backup</em></button>
+        <button type="button" class="step" data-step="2"><span>2</span><em>Board</em></button>
+        <button type="button" class="step" data-step="3"><span>3</span><em>Flash</em></button>
+        <button type="button" class="step" data-step="4"><span>4</span><em>Configure</em></button>
+        <button type="button" class="step" data-step="5"><span>5</span><em>Apply</em></button>
       </div>
       <div class="progress__bar"><div id="progress-bar" style="width:0%"></div></div>
-    </div>
+    </nav>
 
     <main>
       <!-- STEP 1: Backup / Read -->
       <section class="panel" id="step-1">
-        <h2>1. Read current device (recommended)</h2>
-        <p class="muted">Connect the device and read its current name, location, identity, WiFi and MQTT settings. This lets us restore them after flashing.</p>
+        <h2>1. Back up your current settings</h2>
+        <p class="muted">Plug in your board with a USB cable, then read its settings. Anything we find is pre-filled for you later and restored after flashing.</p>
 
         <div class="actions">
           <button id="btn-read-device" class="btn btn-primary" type="button">Read Device Now</button>
-          <button id="btn-upload-backup" class="btn" type="button">Upload Backup .txt</button>
+          <button id="btn-upload-backup" class="btn" type="button">Upload Backup</button>
           <button id="btn-download-backup" class="btn" type="button" disabled>Download Backup</button>
         </div>
 
         <div id="capture-summary" class="capture-summary" hidden></div>
 
-        <div class="grid-capture">
+        <div id="capture-grid" class="grid-capture" hidden>
           <div class="chip"><span>Name</span><strong id="cap-name">—</strong></div>
           <div class="chip"><span>Lat</span><strong id="cap-lat">—</strong></div>
           <div class="chip"><span>Lon</span><strong id="cap-lon">—</strong></div>
@@ -63,7 +63,7 @@
           <div class="chip wide"><span>MQTT Brokers</span><strong id="cap-mqtt">—</strong></div>
         </div>
 
-        <div class="note">You can skip this step for a brand new or erased device.</div>
+        <p class="note">Brand new or already-erased board? Skip this step and continue.</p>
 
         <div class="nav">
           <button class="btn" id="to-step-2" type="button">Continue to Board <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
@@ -73,8 +73,9 @@
       <!-- STEP 2: Board -->
       <section class="panel" id="step-2" hidden>
         <h2>2. Choose your board</h2>
+        <p class="muted">Pick the exact board you're flashing so we download the right firmware for it.</p>
         <div class="field">
-          <label>Supported board</label>
+          <label for="board-select">Supported board</label>
           <select id="board-select" class="select"></select>
         </div>
         <div id="board-info" class="board-info"></div>
@@ -87,37 +88,12 @@
 
       <!-- STEP 3: Flash -->
       <section class="panel" id="step-3" hidden>
-        <h2>3. Radio profile &amp; Flash</h2>
+        <h2>3. Flash the firmware</h2>
+        <p class="muted">Full flash installs fresh firmware and wipes the board. Update replaces only the app and keeps your current settings.</p>
 
-        <div class="radio-section">
-          <label>LoRa Preset</label>
-          <select id="radio-preset" class="select">
-            <option value="EU_UK_RECOMMENDED">EU/UK (Narrow/Recommended) — 869.618, 62.5, 8, 8</option>
-            <option value="EU_UK_LONG_RANGE">EU/UK (Long Range) — 869.525, 250, 11, 5</option>
-            <option value="EU_UK_MEDIUM_RANGE">EU/UK (Medium Range)</option>
-            <option value="US_CA_RECOMMENDED">USA/Canada (Recommended)</option>
-            <option value="AU_RECOMMENDED">Australia</option>
-            <option value="AU_VICTORIA">Australia: Victoria</option>
-            <option value="NZ_RECOMMENDED">New Zealand</option>
-            <option value="NZ_NARROW">New Zealand (Narrow)</option>
-            <option value="CZECH_NARROW">Czech Republic (Narrow)</option>
-            <option value="EU_433_LONG_RANGE">EU 433MHz (Long Range)</option>
-            <option value="PORTUGAL_433">Portugal 433</option>
-            <option value="PORTUGAL_868">Portugal 868</option>
-            <option value="SWITZERLAND">Switzerland</option>
-            <option value="VIETNAM">Vietnam</option>
-            <option value="CUSTOM">Custom</option>
-          </select>
-
-          <div id="radio-custom" class="radio-custom" hidden>
-            <div class="grid-4">
-              <div class="field"><label>Freq (MHz)</label><input id="radio-freq" type="text" value="869.618"></div>
-              <div class="field"><label>BW (kHz)</label><input id="radio-bw" type="text" value="62.5"></div>
-              <div class="field"><label>SF</label><input id="radio-sf" type="text" value="8"></div>
-              <div class="field"><label>CR</label><input id="radio-cr" type="text" value="8"></div>
-            </div>
-          </div>
-          <div class="cmd-preview">Command: <code id="radio-cmd">set radio 869.618,62.5,8,8</code></div>
+        <div class="flash-board">
+          <span>Flashing to</span>
+          <strong id="flash-board-label">—</strong>
         </div>
 
         <div class="flash-actions">
@@ -141,110 +117,120 @@
         </div>
       </section>
 
-      <!-- STEP 4: Configure (unified) -->
+      <!-- STEP 4: Configure (all settings, one section at a time) -->
       <section class="panel" id="step-4" hidden>
-        <h2>4. Configure device</h2>
-        <p class="muted">All settings in one place. Values captured in step 1 are pre-filled where available.</p>
+        <h2>4. Configure your board</h2>
+        <p class="muted">Everything in one place — open a section, fill it in, move on. Values captured in step 1 are pre-filled where available.</p>
 
-        <div class="config-grid">
-          <!-- Identity -->
-          <div class="card">
-            <h3>Identity</h3>
-            <div class="field">
-              <label>Repeater Name</label>
-              <input id="cfg-name" type="text" placeholder="e.g. UKMesh-Repeater" maxlength="31">
-            </div>
-            <div class="field">
-              <label>Private Key (128 hex chars)</label>
-              <div class="input-with-eye">
-                <input id="cfg-prv" type="password" placeholder="Leave blank to keep current" autocomplete="off" spellcheck="false">
-                <button type="button" class="eye" data-eye="cfg-prv">👁</button>
-              </div>
-            </div>
-          </div>
+        <div class="cfg-accordion">
 
-          <!-- Access -->
-          <div class="card">
-            <h3>Access &amp; Location</h3>
-            <div class="grid-2">
-              <div class="field">
-                <label>Guest Password</label>
-                <div class="input-with-eye">
-                  <input id="cfg-guest" type="password" maxlength="15" autocomplete="off">
-                  <button type="button" class="eye" data-eye="cfg-guest">👁</button>
+          <details class="cfg-section" open>
+            <summary><span class="cfg-section__title">Identity &amp; location</span><span class="cfg-section__hint">Name, keys, passwords, GPS</span></summary>
+            <div class="cfg-section__body">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cfg-name">Repeater Name</label>
+                  <input id="cfg-name" type="text" placeholder="e.g. UKMesh-Repeater" maxlength="31">
+                </div>
+                <div class="field">
+                  <label for="cfg-prv">Private Key (128 hex chars)</label>
+                  <div class="input-with-eye">
+                    <input id="cfg-prv" type="password" placeholder="Leave blank to keep current" autocomplete="off" spellcheck="false">
+                    <button type="button" class="eye" data-eye="cfg-prv" aria-label="Show private key">👁</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="cfg-guest">Guest Password</label>
+                  <div class="input-with-eye">
+                    <input id="cfg-guest" type="password" maxlength="15" autocomplete="off">
+                    <button type="button" class="eye" data-eye="cfg-guest" aria-label="Show guest password">👁</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="cfg-admin">Admin Password</label>
+                  <div class="input-with-eye">
+                    <input id="cfg-admin" type="password" maxlength="15" autocomplete="off">
+                    <button type="button" class="eye" data-eye="cfg-admin" aria-label="Show admin password">👁</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="cfg-lat">Latitude</label>
+                  <input id="cfg-lat" type="text" placeholder="51.5074" inputmode="decimal">
+                </div>
+                <div class="field">
+                  <label for="cfg-lon">Longitude</label>
+                  <input id="cfg-lon" type="text" placeholder="-0.1278" inputmode="decimal">
                 </div>
               </div>
-              <div class="field">
-                <label>Admin Password</label>
-                <div class="input-with-eye">
-                  <input id="cfg-admin" type="password" maxlength="15" autocomplete="off">
-                  <button type="button" class="eye" data-eye="cfg-admin">👁</button>
+            </div>
+          </details>
+
+          <details class="cfg-section">
+            <summary><span class="cfg-section__title">WiFi <small>for MQTT</small></span><span class="cfg-section__hint">Network the board connects to</span></summary>
+            <div class="cfg-section__body">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cfg-wifi-ssid">WiFi SSID</label>
+                  <input id="cfg-wifi-ssid" type="text" value="UKMesh-Radio" autocomplete="off">
+                </div>
+                <div class="field">
+                  <label for="cfg-wifi-pass">WiFi Password</label>
+                  <input id="cfg-wifi-pass" type="password" value="password123" autocomplete="new-password">
                 </div>
               </div>
-              <div class="field">
-                <label>Latitude</label>
-                <input id="cfg-lat" type="text" placeholder="51.5074" inputmode="decimal">
-              </div>
-              <div class="field">
-                <label>Longitude</label>
-                <input id="cfg-lon" type="text" placeholder="-0.1278" inputmode="decimal">
-              </div>
             </div>
-          </div>
+          </details>
 
-          <!-- WiFi -->
-          <div class="card">
-            <h3>WiFi (for MQTT)</h3>
-            <div class="grid-2">
+          <details class="cfg-section">
+            <summary><span class="cfg-section__title">Radio <small>LoRa profile</small></span><span class="cfg-section__hint">Frequency, bandwidth, spreading factor</span></summary>
+            <div class="cfg-section__body">
               <div class="field">
-                <label>WiFi SSID</label>
-                <input id="cfg-wifi-ssid" type="text" value="UKMesh-Radio" autocomplete="off">
+                <label for="cfg-radio-preset">LoRa Preset</label>
+                <select id="cfg-radio-preset" class="select">
+                  <option value="EU_UK_RECOMMENDED" selected>EU/UK (Narrow/Recommended) — 869.618, 62.5, 8, 8</option>
+                  <option value="EU_UK_LONG_RANGE">EU/UK (Long Range) — 869.525, 250, 11, 5</option>
+                  <option value="EU_UK_MEDIUM_RANGE">EU/UK (Medium Range)</option>
+                  <option value="US_CA_RECOMMENDED">USA/Canada (Recommended)</option>
+                  <option value="AU_RECOMMENDED">Australia</option>
+                  <option value="AU_VICTORIA">Australia: Victoria</option>
+                  <option value="NZ_RECOMMENDED">New Zealand</option>
+                  <option value="NZ_NARROW">New Zealand (Narrow)</option>
+                  <option value="CZECH_NARROW">Czech Republic (Narrow)</option>
+                  <option value="EU_433_LONG_RANGE">EU 433MHz (Long Range)</option>
+                  <option value="PORTUGAL_433">Portugal 433</option>
+                  <option value="PORTUGAL_868">Portugal 868</option>
+                  <option value="SWITZERLAND">Switzerland</option>
+                  <option value="VIETNAM">Vietnam</option>
+                  <option value="CUSTOM">Custom (edit below)</option>
+                </select>
               </div>
-              <div class="field">
-                <label>WiFi Password</label>
-                <input id="cfg-wifi-pass" type="password" value="password123" autocomplete="new-password">
+              <div class="grid-4">
+                <div class="field"><label for="cfg-freq">Freq (MHz)</label><input id="cfg-freq" type="text" value="869.618" inputmode="decimal"></div>
+                <div class="field"><label for="cfg-bw">BW (kHz)</label><input id="cfg-bw" type="text" value="62.5" inputmode="decimal"></div>
+                <div class="field"><label for="cfg-sf">SF</label><input id="cfg-sf" type="text" value="8" inputmode="numeric"></div>
+                <div class="field"><label for="cfg-cr">CR</label><input id="cfg-cr" type="text" value="8" inputmode="numeric"></div>
               </div>
+              <div class="cmd-preview">set radio <span id="cfg-radio-cmd">869.618,62.5,8,8</span></div>
             </div>
-          </div>
+          </details>
 
-          <!-- Radio (compact) -->
-          <div class="card">
-            <h3>Radio (optional re-apply)</h3>
-            <div class="field">
-              <label>Preset</label>
-              <select id="cfg-radio-preset" class="select">
-                <option value="EU_UK_RECOMMENDED">EU/UK (Narrow/Recommended)</option>
-                <option value="EU_UK_LONG_RANGE">EU/UK (Long Range)</option>
-                <option value="EU_UK_MEDIUM_RANGE">EU/UK (Medium Range)</option>
-                <option value="US_CA_RECOMMENDED">USA/Canada</option>
-                <option value="CUSTOM">Custom (edit below)</option>
-              </select>
-            </div>
-            <div class="grid-4 small">
-              <div class="field"><label>Freq</label><input id="cfg-freq" type="text" value="869.618"></div>
-              <div class="field"><label>BW</label><input id="cfg-bw" type="text" value="62.5"></div>
-              <div class="field"><label>SF</label><input id="cfg-sf" type="text" value="8"></div>
-              <div class="field"><label>CR</label><input id="cfg-cr" type="text" value="8"></div>
-            </div>
-            <div class="cmd-preview small">set radio <span id="cfg-radio-cmd">869.618,62.5,8,8</span></div>
-          </div>
-
-          <!-- MQTT -->
-          <div class="card wide">
-            <h3>MQTT — up to 6 brokers</h3>
-            <div class="grid-2">
-              <div class="field">
-                <label>Model Label</label>
-                <input id="cfg-model" type="text" value="Heltec V3">
+          <details class="cfg-section">
+            <summary><span class="cfg-section__title">MQTT brokers <small>up to 6</small></span><span class="cfg-section__hint">Where the board publishes packets</span></summary>
+            <div class="cfg-section__body">
+              <div class="grid-2">
+                <div class="field">
+                  <label for="cfg-model">Model Label</label>
+                  <input id="cfg-model" type="text" value="Heltec V3">
+                </div>
+                <div class="field">
+                  <label for="cfg-client-ver">Client Version</label>
+                  <input id="cfg-client-ver" type="text" value="custom-mqtt-observer/1.0.0">
+                </div>
               </div>
-              <div class="field">
-                <label>Client Version</label>
-                <input id="cfg-client-ver" type="text" value="custom-mqtt-observer/1.0.0">
-              </div>
+              <div id="mqtt-brokers"></div>
             </div>
+          </details>
 
-            <div id="mqtt-brokers"></div>
-          </div>
         </div>
 
         <div class="nav">
@@ -256,6 +242,7 @@
       <!-- STEP 5: Apply & Verify -->
       <section class="panel" id="step-5" hidden>
         <h2>5. Apply settings &amp; verify</h2>
+        <p class="muted">Send everything to your board in one go, then verify the values stuck.</p>
 
         <div class="apply-actions">
           <button id="btn-apply-all" class="btn btn-primary" type="button">Apply All Settings</button>
@@ -281,21 +268,25 @@
       </section>
     </main>
 
-    <section class="log">
-      <div class="log__head">
-        <span>Live Output</span>
-        <div>
+    <section class="log" id="log-section">
+      <button type="button" class="log__bar" id="log-toggle" aria-expanded="false" aria-controls="log-body">
+        <span class="log__bar-title">Live Output</span>
+        <span class="log__preview" id="log-preview">Ready. Connect your device via USB and use the steps above.</span>
+        <span class="log__chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="log__body" id="log-body" hidden>
+        <div class="log__tools">
           <button id="btn-copy-log" class="btn btn-small" type="button">Copy</button>
           <button id="btn-clear-log" class="btn btn-small" type="button">Clear</button>
         </div>
+        <div id="log-pane" class="log__pane"></div>
       </div>
-      <div id="log-pane" class="log__pane"></div>
     </section>
   </div>
 
   <input type="file" id="backup-file" accept=".txt" hidden>
 
-  <script src="assets/firmware-data.js?v=20260801"></script>
-  <script src="assets/app.js?v=20260801"></script>
+  <script src="assets/firmware-data.js?v=20260807"></script>
+  <script src="assets/app.js?v=20260807"></script>
 </body>
 </html>

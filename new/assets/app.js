@@ -129,6 +129,8 @@
     logPane.appendChild(p);
     logPane.scrollTop = logPane.scrollHeight;
     logLines.push(p.textContent);
+    const preview = $("log-preview");
+    if (preview) preview.textContent = line;
     if (logLines.length > 500) {
       logLines.shift();
       if (logPane.firstChild) logPane.removeChild(logPane.firstChild);
@@ -169,6 +171,14 @@
     [step1, step2, step3, step4, step5].forEach((s, i) => { if (s) s.hidden = (i + 1 !== n); });
     setProgress(n);
     updateDisabledStates();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /* ── Collapsible live-output log ──────────── */
+  function expandLog() {
+    const body = $("log-body"), toggle = $("log-toggle");
+    if (body) body.hidden = false;
+    if (toggle) toggle.setAttribute("aria-expanded", "true");
   }
 
   /* ── Disabled-state logic ──────────────────── */
@@ -519,28 +529,30 @@
     VIETNAM:              { freq:"920.250", bw:"250",   sf:"11", cr:"5"  },
   };
 
-  function getRadioFreq()  { return (radioFreq  && radioFreq.value)  || "869.618"; }
-  function getRadioBw()    { return (radioBw    && radioBw.value)    || "62.5"; }
-  function getRadioSf()    { return (radioSf    && radioSf.value)    || "8"; }
-  function getRadioCr()    { return (radioCr    && radioCr.value)    || "8"; }
+  function getRadioFreq()  { return (radioFreq  && radioFreq.value)  || (cfgFreq  && cfgFreq.value)  || "869.618"; }
+  function getRadioBw()    { return (radioBw    && radioBw.value)    || (cfgBw    && cfgBw.value)    || "62.5"; }
+  function getRadioSf()    { return (radioSf    && radioSf.value)    || (cfgSf    && cfgSf.value)    || "8"; }
+  function getRadioCr()    { return (radioCr    && radioCr.value)    || (cfgCr    && cfgCr.value)    || "8"; }
   function buildRadioStr() { return `${getRadioFreq()},${getRadioBw()},${getRadioSf()},${getRadioCr()}`; }
 
   function updateRadioCmd() {
-    const preset = radioPreset ? radioPreset.value : "EU_UK_RECOMMENDED";
+    // Radio lives in the step-4 Configure panel; the old step-3 select is gone.
+    const preset = (radioPreset && radioPreset.value) || (cfgRadioPreset && cfgRadioPreset.value) || "EU_UK_RECOMMENDED";
     const r = RADIO_MAP[preset];
     if (preset === "CUSTOM" || !r) {
       if (radioCustom) radioCustom.hidden = false;
     } else {
       if (radioCustom) radioCustom.hidden = true;
-      if (radioFreq) radioFreq.value = r.freq;
-      if (radioBw)   radioBw.value   = r.bw;
-      if (radioSf)   radioSf.value   = r.sf;
-      if (radioCr)   radioCr.value   = r.cr;
+      // Step-3 inputs are gone; write preset values straight into the configure panel.
+      if (radioFreq) radioFreq.value = r.freq; else if (cfgFreq) cfgFreq.value = r.freq;
+      if (radioBw)   radioBw.value   = r.bw;   else if (cfgBw)   cfgBw.value   = r.bw;
+      if (radioSf)   radioSf.value   = r.sf;   else if (cfgSf)   cfgSf.value   = r.sf;
+      if (radioCr)   radioCr.value   = r.cr;   else if (cfgCr)   cfgCr.value   = r.cr;
     }
     const cmd = `set radio ${buildRadioStr()}`;
     if (radioCmd) radioCmd.textContent = cmd;
 
-    // mirror to step 4
+    // keep the configure panel in sync
     if (cfgRadioPreset) cfgRadioPreset.value = (preset === "CUSTOM" || !r) ? "CUSTOM" : preset;
     if (cfgFreq)  cfgFreq.value  = getRadioFreq();
     if (cfgBw)    cfgBw.value    = getRadioBw();
@@ -839,6 +851,7 @@
   /* ── Read device (capture) — matches original sequence ── */
   async function readDevice() {
     if (applyingNow || flashingNow) return;
+    expandLog();
     const openedHere = !serialConnected;
     try {
       if (openedHere) {
@@ -912,7 +925,13 @@
   }
 
   function renderCapture() {
-    if (!captured) { if (captureSummary) captureSummary.hidden = true; return; }
+    const grid = $("capture-grid");
+    if (!captured) {
+      if (captureSummary) captureSummary.hidden = true;
+      if (grid) grid.hidden = true;
+      return;
+    }
+    if (grid) grid.hidden = false;
     if (captureSummary) {
       captureSummary.hidden = false;
       captureSummary.innerHTML = "";
@@ -1166,6 +1185,8 @@
 
   function setCurrentBoard(b) {
     currentBoard = b;
+    const flashLabel = $("flash-board-label");
+    if (flashLabel) flashLabel.textContent = b ? `${b.label} — ${b.firmwareVersion}` : "—";
     if (!boardInfo) return;
     if (!b) { boardInfo.innerHTML = ""; } else {
       const verified = String(b.hardwareStatus || "").toLowerCase().includes("verified");
@@ -1304,6 +1325,7 @@
 
   async function flashFirmware(kind) {
     if (flashingNow) { log("Flash already in progress."); return; }
+    expandLog();
     if (!currentBoard) { fail("Select a board first"); return; }
     if (!currentBoard.artifactBase || !currentBoard.chipFamily) { fail("Firmware artifact is not published for this board yet."); return; }
     if (!window.isSecureContext && location.hostname !== "127.0.0.1" && location.hostname !== "localhost") {
@@ -1390,6 +1412,7 @@
 
   async function applyAll() {
     if (!serialConnected) { fail("Connect serial first"); return; }
+    expandLog();
     if (!serialPort || !serialPort.writable || !serialPort.readable) {
       serialConnected = false; updateSerialUI(false);
       fail("Serial port is no longer usable. Reconnect serial before trying again.");
@@ -1467,6 +1490,7 @@
 
   async function verifyNow() {
     if (!serialConnected) { fail("Connect serial to verify"); return; }
+    expandLog();
     if (verifySummary) verifySummary.innerHTML = "Reading...";
     const v = (el) => (el && el.value || "").trim();
     const brokers = getMqttFormBrokers();
@@ -1556,6 +1580,20 @@
   safe(backTo3, b => b.addEventListener("click", () => showStep(3)));
   safe(toStep5, b => b.addEventListener("click", () => { if (!currentBoard) { fail("Select a board first"); return; } showStep(5); }));
   safe(backTo4, b => b.addEventListener("click", () => showStep(4)));
+
+  // Clickable stepper: jump to any step from the progress bar.
+  progressSteps.forEach(el => el.addEventListener("click", () => {
+    const n = parseInt(el.dataset.step, 10);
+    if (n >= 1 && n <= 5) showStep(n);
+  }));
+
+  // Collapsible live-output log.
+  safe($("log-toggle"), b => b.addEventListener("click", () => {
+    const body = $("log-body");
+    if (!body) return;
+    body.hidden = !body.hidden;
+    b.setAttribute("aria-expanded", String(!body.hidden));
+  }));
 
   safe(btnFlashFull, b => b.addEventListener("click", () => flashFirmware("full")));
   safe(btnFlashUpdate, b => b.addEventListener("click", () => flashFirmware("update")));

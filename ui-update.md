@@ -1,3 +1,5 @@
+# STATUS: UI simplification implemented and deployed 2026-08-07 (see commit). Items below are historical context; 0a-0c, 1, 3-5, 7, 9-10 already live. Remaining: 6, 8, 11-15, 17-18 (minor).
+
 # MeshCore-MQTT-WebFlasher UI Improvements
 
 Recommended UI changes, organized by priority. This is a planning document — no code has been changed yet.
