@@ -2,14 +2,14 @@
   "base_env": "T_Beam_S3_Supreme_SX1262_repeater",
   "build_env": "T_Beam_S3_Supreme_SX1262_repeater_mqtt_dynamic",
   "firmware_name": "meshcore-mqtt",
-  "firmware_version": "v1.16.0",
-  "built_at_utc": "2026-06-13T14:41:20Z",
+  "firmware_version": "v1.16.0-rev3",
+  "built_at_utc": "2026-08-07T10:32:27Z",
   "artifacts": {
-    "update": "meshcore-mqtt-v1.16.0-T_Beam_S3_Supreme_SX1262_repeater-update-0012.bin",
-    "full": "meshcore-mqtt-v1.16.0-T_Beam_S3_Supreme_SX1262_repeater-full-e43b.bin",
-    "bootloader": "meshcore-mqtt-v1.16.0-T_Beam_S3_Supreme_SX1262_repeater-bootloader-1776.bin",
-    "partitions": "meshcore-mqtt-v1.16.0-T_Beam_S3_Supreme_SX1262_repeater-partitions-1d9c.bin",
-    "boot_app0": "meshcore-mqtt-v1.16.0-T_Beam_S3_Supreme_SX1262_repeater-boot_app0-f94c.bin"
+    "update": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-update-7741.bin",
+    "full": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-full-60cd.bin",
+    "bootloader": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-bootloader-1776.bin",
+    "partitions": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-partitions-1d9c.bin",
+    "boot_app0": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-boot_app0-f94c.bin"
   },
   "flash_offsets": {
     "bootloader": "0x0000",
@@ -20,15 +20,30 @@
   },
   "update_segments": [
     {
+      "name": "bootloader",
+      "path": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-bootloader-1776.bin",
+      "offset": "0x0000"
+    },
+    {
+      "name": "partitions",
+      "path": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-partitions-1d9c.bin",
+      "offset": "0x8000"
+    },
+    {
+      "name": "boot_app0",
+      "path": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-boot_app0-f94c.bin",
+      "offset": "0xe000"
+    },
+    {
       "name": "firmware",
-      "path": "meshcore-mqtt-v1.16.0-T_Beam_S3_Supreme_SX1262_repeater-update-0012.bin",
+      "path": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-update-7741.bin",
       "offset": "0x10000"
     }
   ],
   "full_segments": [
     {
       "name": "merged",
-      "path": "meshcore-mqtt-v1.16.0-T_Beam_S3_Supreme_SX1262_repeater-full-e43b.bin",
+      "path": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-full-60cd.bin",
       "offset": "0x00000"
     }
   ]
