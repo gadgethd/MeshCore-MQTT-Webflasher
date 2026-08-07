@@ -107,7 +107,7 @@ window.FIRMWARE_DATA = {
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32-S3",
-      "hardwareStatus": "Verified on hardware",
+      "hardwareStatus": "Compile validated",
       "manifestPath": "/firmware/heltec_v4_tft_repeater/manifest.json",
       "artifactBase": "/firmware/heltec_v4_tft_repeater/",
       "artifacts": {

@@ -1639,6 +1639,23 @@
     if (n) n.hidden = true;
   }));
 
+  // Light/dark theme toggle (persisted; defaults to system preference).
+  const THEME_KEY = "flasher-theme";
+  function applyTheme(theme, { persist = true } = {}) {
+    const t = theme === "light" ? "light" : "dark";
+    document.documentElement.dataset.theme = t;
+    const btn = $("btn-theme");
+    if (btn) {
+      btn.textContent = t === "light" ? "🌙" : "☀️";
+      btn.setAttribute("aria-label", t === "light" ? "Switch to dark mode" : "Switch to light mode");
+    }
+    if (persist) { try { localStorage.setItem(THEME_KEY, t); } catch (_) {} }
+  }
+  safe($("btn-theme"), b => b.addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+    applyTheme(next);
+  }));
+
   safe(btnFlashFull, b => b.addEventListener("click", () => flashFirmware("full")));
   safe(btnFlashUpdate, b => b.addEventListener("click", () => flashFirmware("update")));
   safe(btnReconnectFlash, b => b.addEventListener("click", connectSerial));
@@ -1664,6 +1681,13 @@
   /* ── Init ───────────────────────────────────── */
   function init() {
     try {
+      let theme = "dark";
+      try {
+        const stored = localStorage.getItem(THEME_KEY);
+        if (stored === "light" || stored === "dark") theme = stored;
+        else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) theme = "light";
+      } catch (_) {}
+      applyTheme(theme, { persist: false });
       if (!("serial" in navigator) || !window.isSecureContext) {
         const notice = $("browser-notice");
         if (notice) notice.hidden = false;
