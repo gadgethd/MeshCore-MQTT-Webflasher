@@ -93,7 +93,7 @@ window.FIRMWARE_DATA = {
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32-S3",
-      "hardwareStatus": "Compile validated",
+      "hardwareStatus": "Verified on hardware",
       "manifestPath": "/firmware/heltec_v4_repeater/manifest.json",
       "artifactBase": "/firmware/heltec_v4_repeater/",
       "artifacts": {
@@ -107,7 +107,7 @@ window.FIRMWARE_DATA = {
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32-S3",
-      "hardwareStatus": "Compile validated",
+      "hardwareStatus": "Verified on hardware",
       "manifestPath": "/firmware/heltec_v4_tft_repeater/manifest.json",
       "artifactBase": "/firmware/heltec_v4_tft_repeater/",
       "artifacts": {
@@ -121,7 +121,7 @@ window.FIRMWARE_DATA = {
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0",
       "chipFamily": "ESP32",
-      "hardwareStatus": "Compile validated",
+      "hardwareStatus": "Verified on hardware",
       "manifestPath": "/firmware/Heltec_Wireless_Paper_repeater/manifest.json",
       "artifactBase": "/firmware/Heltec_Wireless_Paper_repeater/",
       "artifacts": {
