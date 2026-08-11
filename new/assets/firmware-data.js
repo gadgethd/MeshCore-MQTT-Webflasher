@@ -10,7 +10,7 @@ window.FIRMWARE_DATA = {
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Verified on hardware",
       "notes": "Native USB-serial-JTAG — to enter flash mode: hold BOOT, tap RESET, release BOOT.",
-      "manifestPath": "/firmware/Heltec_v3_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/Heltec_v3_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-full-2af6.bin",
@@ -24,7 +24,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0-rev3",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/LilyGo_T3S3_sx1262_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/LilyGo_T3S3_sx1262_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-full-18b4.bin",
@@ -38,7 +38,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0-rev3",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/RAK_3112_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/RAK_3112_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-full-799d.bin",
@@ -52,7 +52,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0-rev3",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/Xiao_S3_WIO_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/Xiao_S3_WIO_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-full-21e9.bin",
@@ -64,9 +64,9 @@ window.FIRMWARE_DATA = {
       "label": "Heltec T190 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0-rev3",
-      "chipFamily": "ESP32",
+      "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/Heltec_T190_repeater_/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/Heltec_T190_repeater_/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-full-86f9.bin",
@@ -78,9 +78,9 @@ window.FIRMWARE_DATA = {
       "label": "Heltec Tracker V2 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0-rev3",
-      "chipFamily": "ESP32",
+      "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/heltec_tracker_v2_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/heltec_tracker_v2_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-full-2325.bin",
@@ -94,7 +94,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0-rev3",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Verified on hardware",
-      "manifestPath": "/firmware/heltec_v4_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/heltec_v4_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-full-8fdd.bin",
@@ -108,7 +108,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0-rev3",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/heltec_v4_tft_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/heltec_v4_tft_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-full-ea34.bin",
@@ -120,9 +120,9 @@ window.FIRMWARE_DATA = {
       "label": "Heltec Wireless Paper Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0-rev3",
-      "chipFamily": "ESP32",
+      "chipFamily": "ESP32-S3",
       "hardwareStatus": "Verified on hardware",
-      "manifestPath": "/firmware/Heltec_Wireless_Paper_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/Heltec_Wireless_Paper_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-full-c75a.bin",
@@ -134,9 +134,9 @@ window.FIRMWARE_DATA = {
       "label": "Heltec Wireless Tracker Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0-rev3",
-      "chipFamily": "ESP32",
+      "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/Heltec_Wireless_Tracker_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/Heltec_Wireless_Tracker_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-full-6f99.bin",
@@ -148,9 +148,9 @@ window.FIRMWARE_DATA = {
       "label": "Heltec WSL3 Repeater",
       "firmwareName": "meshcore-mqtt",
       "firmwareVersion": "v1.16.0-rev3",
-      "chipFamily": "ESP32",
+      "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/Heltec_WSL3_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/Heltec_WSL3_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-full-64f8.bin",
@@ -164,7 +164,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0-rev3",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/LilyGo_T3S3_sx1276_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/LilyGo_T3S3_sx1276_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-full-f288.bin",
@@ -178,7 +178,7 @@ window.FIRMWARE_DATA = {
       "firmwareVersion": "v1.16.0-rev3",
       "chipFamily": "ESP32-S3",
       "hardwareStatus": "Compile validated",
-      "manifestPath": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/manifest.json",
+      "manifestPath": "/firmware/release-manifest.json",
       "artifactBase": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/",
       "artifacts": {
         "full": "meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-full-60cd.bin",

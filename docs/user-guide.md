@@ -54,14 +54,13 @@ The board selection controls:
 - firmware version and artifact names displayed in the UI
 - manifest path
 - chip family label
-- whether the catalog points to stable or development assets
+- the stable signed release entry used for the board
 - which browser-stored backup and saved settings are loaded
 
 ### 4. Set Radio And Flash Firmware
 
 The flash panel lets you:
 
-- choose the firmware branch: `main` or `dev`
 - select a LoRa preset or enter custom radio values
 - flash either a `Full` image or an `Update` image
 - open the board manifest for inspection
@@ -69,7 +68,9 @@ The flash panel lets you:
 Flash behavior:
 
 - `Flash Full Firmware` erases flash and writes the full merged image.
-- `Flash Update Only` writes the published update image at the application offset.
+- `Flash Update Only` writes the signed bootloader, partitions, `boot_app0`, and application segments at their declared offsets.
+- Before the serial chooser opens, both modes verify the pinned manifest signature and every selected artifact's origin, size, and SHA-256.
+- Before writing, the flasher requires the signed chip ID, ESP image header, and detected bootloader chip to agree.
 - After a successful flash, the app releases the flashing session and prompts you to
   reconnect serial before configuration continues.
 
@@ -99,16 +100,10 @@ In the final step, reconnect serial and choose one of three apply paths:
 When a reboot is part of the apply path, the app schedules serial disconnect, shows a
 reconnect banner, and expects you to reconnect before verifying state.
 
-## Firmware Branch Selection
+## Firmware Release Selection
 
-Switching the branch changes which firmware catalog is loaded:
-
-- `main` loads `/assets/firmware-data.js`
-- `dev` loads `/assets/firmware-data-dev.js`
-
-The `dev` branch displays a warning dialog before the first selection and saves the
-preference in browser storage. If the dev catalog fails to load, the UI reverts to
-`main`.
+Only the signed stable catalog is currently published. Development firmware is not
+offered unless a complete inventory, signed manifest, and matching artifacts are released together.
 
 ## Tips For Reliable Operation
 

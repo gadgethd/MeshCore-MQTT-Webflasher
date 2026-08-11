@@ -1,0 +1,836 @@
+{
+  "schemaVersion": 1,
+  "release": {
+    "firmwareName": "meshcore-mqtt",
+    "firmwareVersion": "v1.16.0-rev3",
+    "generatedAt": "2026-08-07T10:43:03Z",
+    "branch": "main"
+  },
+  "boards": [
+    {
+      "id": "Heltec_v3_repeater",
+      "label": "Heltec v3 Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Verified on hardware",
+      "notes": "Native USB-serial-JTAG — to enter flash mode: hold BOOT, tap RESET, release BOOT.",
+      "baseEnv": "Heltec_v3_repeater",
+      "buildEnv": "Heltec_v3_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:29:19Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-full-2af6.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1365104,
+            "sha256": "2af6e813a871c58da1e5f460e7283bf9a9dbbeaa65cd1d826679c5cb993617bc",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-update-53d4.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1299568,
+            "sha256": "53d456cb21c3fd0ed1b4957298944c1090f83f38740fa8df734b935717867ee8",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "LilyGo_T3S3_sx1262_repeater",
+      "label": "LilyGo T3S3 SX1262",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "LilyGo_T3S3_sx1262_repeater",
+      "buildEnv": "LilyGo_T3S3_sx1262_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:30:00Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-full-18b4.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1297872,
+            "sha256": "18b421716b872ecd3a0f174a5b7c29fc9d8db481226c9104ee68ac5827b737e8",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-bootloader-e01a.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "e01a2300de23c8d601e9f2a37684b5dbc83ae37132d5a8833e23520afd895f92",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-partitions-148b.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-update-4e3d.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1232336,
+            "sha256": "4e3de540d8c2ac53b2debe1eb925f55d52a21a65d0877d233f732e0821c41507",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "RAK_3112_repeater",
+      "label": "RAK 3112",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "RAK_3112_repeater",
+      "buildEnv": "RAK_3112_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:31:40Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-full-799d.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1356272,
+            "sha256": "799de4f76c00accbae591d30489562d766dd0e035fc1a72986591871a013e82f",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-update-738b.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1290736,
+            "sha256": "738b549453e7e69c0ff69bf06851752d6d6070e579bcf715dc76dec2d0c1d94d",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "Xiao_S3_WIO_repeater",
+      "label": "Xiao S3 WIO",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "Xiao_S3_WIO_repeater",
+      "buildEnv": "Xiao_S3_WIO_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:33:25Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-full-21e9.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1318976,
+            "sha256": "21e967e654335cbff92605edefb814683c6abe64e2e6beb00aa345046ab6e092",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-update-375a.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1253440,
+            "sha256": "375a79c81445d35a731735cc116d06779aba1a4dd913558e42ff30db19aa76a6",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "Heltec_T190_repeater_",
+      "label": "Heltec T190 Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "Heltec_T190_repeater_",
+      "buildEnv": "Heltec_T190_repeater__mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:25:28Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-full-86f9.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1454192,
+            "sha256": "86f9a2ed2992779972673814f374b59e0085df690f22e7668947e781fac033b7",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-bootloader-2a71.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "2a71d69b471e20c2bac7fb469f3c6a807b3ebee780e348e5889db0da849ca363",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-partitions-bd0f.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "bd0f7954aca2ef7d925ee21aaa1f3dc8822d1d6ce5cbbd26a135e5886bfff6ce",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-update-119a.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1388656,
+            "sha256": "119af557b91dff884db17c091e57595404db83634745e83fdd87dd28d981c843",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "heltec_tracker_v2_repeater",
+      "label": "Heltec Tracker V2 Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "heltec_tracker_v2_repeater",
+      "buildEnv": "heltec_tracker_v2_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:34:27Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-full-2325.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1388560,
+            "sha256": "23259637e6c78b9f706f0275e218ff3ffb0c0a9d87a61967c9bc735857f2d82f",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-update-a51f.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1323024,
+            "sha256": "a51f5785730c283b9d0010b51e2386fdb5527ea0ea4c83aa3df874354355ad3a",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "heltec_v4_repeater",
+      "label": "Heltec V4 Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Verified on hardware",
+      "baseEnv": "heltec_v4_repeater",
+      "buildEnv": "heltec_v4_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:35:29Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-full-8fdd.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1513904,
+            "sha256": "8fddd39f2a76d15eef83e6a2df3676c5ee322982751d0b3d66c517f6565056aa",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-bootloader-2a71.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "2a71d69b471e20c2bac7fb469f3c6a807b3ebee780e348e5889db0da849ca363",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-partitions-bd0f.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "bd0f7954aca2ef7d925ee21aaa1f3dc8822d1d6ce5cbbd26a135e5886bfff6ce",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-update-eb62.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1448368,
+            "sha256": "eb62cc866280f17d593e4a72e60e46afd0be9a5b6f4b8ff49b53fd5e0ec9ffb3",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "heltec_v4_tft_repeater",
+      "label": "Heltec V4 TFT Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "heltec_v4_tft_repeater",
+      "buildEnv": "heltec_v4_tft_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:36:33Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-full-ea34.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1515568,
+            "sha256": "ea3415c89006129a99e80e06a6421d00da3e73cc95f10cbfecacf9feafa822bd",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-bootloader-2a71.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "2a71d69b471e20c2bac7fb469f3c6a807b3ebee780e348e5889db0da849ca363",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-partitions-bd0f.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "bd0f7954aca2ef7d925ee21aaa1f3dc8822d1d6ce5cbbd26a135e5886bfff6ce",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-update-b55d.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1450032,
+            "sha256": "b55dd39227dc484853de3f1fc31320350bbe4be37b6fe5551b08f1b53648a255",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "Heltec_Wireless_Paper_repeater",
+      "label": "Heltec Wireless Paper Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Verified on hardware",
+      "baseEnv": "Heltec_Wireless_Paper_repeater",
+      "buildEnv": "Heltec_Wireless_Paper_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:27:47Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-full-c75a.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1312624,
+            "sha256": "c75aee0df18ee5f3b1a8cb1ee36c9a8b63db07731f773ed838edf4cc5bb231fb",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-update-d066.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1247088,
+            "sha256": "d066f840283aa0079c0de9b8c1854069645017ea50fbf0892712025586328101",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "Heltec_Wireless_Tracker_repeater",
+      "label": "Heltec Wireless Tracker Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "Heltec_Wireless_Tracker_repeater",
+      "buildEnv": "Heltec_Wireless_Tracker_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:28:33Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-full-6f99.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1319440,
+            "sha256": "6f99d231a0da0ef439757a5b94285a00c37a766f9e559747d216685f38dc8523",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-update-53b3.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1253904,
+            "sha256": "53b31deb2da61a78b6b439e271729fb72e52172d1fd9075340b0d3927d23e44c",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "Heltec_WSL3_repeater",
+      "label": "Heltec WSL3 Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "Heltec_WSL3_repeater",
+      "buildEnv": "Heltec_WSL3_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:26:59Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-full-64f8.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1352016,
+            "sha256": "64f8ad36c8a62e650660f362cfba9a06697243ae56540c8e08ff6d69cc6fb98a",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-update-c265.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1286480,
+            "sha256": "c265ede91d0cb6389dd5540eefc2509735ad9564fe690763a69a459647222e79",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "LilyGo_T3S3_sx1276_repeater",
+      "label": "LilyGo T3S3 SX1276",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "LilyGo_T3S3_sx1276_repeater",
+      "buildEnv": "LilyGo_T3S3_sx1276_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:30:41Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-full-f288.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1295760,
+            "sha256": "f2889b3cdb68e62129b6f0dcc5e39b0735d82606a4e4f46322c50e69ac336dce",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-bootloader-e01a.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "e01a2300de23c8d601e9f2a37684b5dbc83ae37132d5a8833e23520afd895f92",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-partitions-148b.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "148b959cbff1c38aa8e1d5c0ba9d612c54997b945e56a63f41223eef650653a1",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-update-b2cb.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1230224,
+            "sha256": "b2cb14a8f29bd0008e5bd06563c500088ec8f8d19c2a1f1bb07147b3f9c10049",
+            "chipId": 9
+          }
+        ]
+      }
+    },
+    {
+      "id": "T_Beam_S3_Supreme_SX1262_repeater",
+      "label": "T-Beam S3 Supreme SX1262 Repeater",
+      "firmwareName": "meshcore-mqtt",
+      "firmwareVersion": "v1.16.0-rev3",
+      "chipId": 9,
+      "chipName": "ESP32-S3",
+      "hardwareStatus": "Compile validated",
+      "baseEnv": "T_Beam_S3_Supreme_SX1262_repeater",
+      "buildEnv": "T_Beam_S3_Supreme_SX1262_repeater_mqtt_dynamic",
+      "builtAtUtc": "2026-08-07T10:32:27Z",
+      "modes": {
+        "full": [
+          {
+            "name": "merged",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-full-60cd.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 1337488,
+            "sha256": "60cd57912c69b2f8190ad17cbfa7a1760f2d7e90f67d5f4c2e0c0948d684b140",
+            "chipId": 9
+          }
+        ],
+        "update": [
+          {
+            "name": "bootloader",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-bootloader-1776.bin",
+            "offset": 0,
+            "imageHeader": true,
+            "size": 15104,
+            "sha256": "1776e4dd896a69d0a5c2e79957b0e2a88aa4129b1381d6478683515a1f6af343",
+            "chipId": 9
+          },
+          {
+            "name": "partitions",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-partitions-1d9c.bin",
+            "offset": 32768,
+            "imageHeader": false,
+            "size": 3072,
+            "sha256": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+            "chipId": 9
+          },
+          {
+            "name": "boot_app0",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-boot_app0-f94c.bin",
+            "offset": 57344,
+            "imageHeader": false,
+            "size": 8192,
+            "sha256": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
+            "chipId": 9
+          },
+          {
+            "name": "firmware",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-update-7741.bin",
+            "offset": 65536,
+            "imageHeader": true,
+            "size": 1271952,
+            "sha256": "774114b359e47557f94eca647715875ef3475f40ec7b419a207d0992475a8001",
+            "chipId": 9
+          }
+        ]
+      }
+    }
+  ],
+  "signature": {
+    "algorithm": "Ed25519",
+    "keyId": "meshcore-mqtt-webflasher-2026-08",
+    "value": "gI3LyoizNSsDZwnwqB0zDmN0haDGJzM1K2ClWpH1rkRGvSnj/+x47Tff1jycPb+ZbUjYRRxaW8y8srJ9W8LPCw=="
+  }
+}

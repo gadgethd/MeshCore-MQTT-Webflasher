@@ -61,7 +61,6 @@ const summaryMqtt = document.getElementById("summary-mqtt");
 const flashButton = document.getElementById("flash-button");
 const updateButton = document.getElementById("update-button");
 const manifestButton = document.getElementById("manifest-button");
-const firmwareBranchSelect = document.getElementById("firmware-branch");
 const serialButton = document.getElementById("serial-button") || null;
 const navSerialButton = document.getElementById("nav-serial-button");
 const navActionButton = document.getElementById("nav-action-button");
@@ -94,6 +93,8 @@ const capSummary = document.getElementById("cap-summary");
 
 let firmwareData = window.FIRMWARE_DATA || { boards: [] };
 const FIRMWARE_FETCH_VERSION = "20260309-2102";
+const security = window.MeshCoreSecurity;
+if (!security) throw new Error("Firmware security helper failed to load");
 const UI_MODE_STORAGE_KEY = "meshcore-mqtt-ui-mode";
 const UI_MODES = {
   SIMPLE: "simple",
@@ -110,9 +111,7 @@ const INTENTS = {
 const INTENT_STORAGE_KEY = "meshcore-mqtt-intent";
 
 let flashComplete = false;
-let currentFirmwareBranch = "main";
-const FIRMWARE_BRANCH_STORAGE_KEY = "meshcore-mqtt-firmware-branch";
-const DEV_WARNING_SHOWN_KEY = "meshcore-mqtt-dev-warning-shown";
+const currentFirmwareBranch = "main";
 let serialConnected = false;
 let configApplied = false;
 let currentBoard = null;
@@ -130,10 +129,10 @@ let serialConnectedAt = 0;
 let serialCliReady = false;
 let preferredSerialPortInfo = null;
 let scheduledSerialDisconnect = null;
+let activeSerialRequest = null;
 let capturedDeviceInfo = null;
 let savedStep4Settings = null;
 let activeMqttBrokerIds = new Set();
-const boardManifestCache = new Map();
 const stepPanels = Array.from(document.querySelectorAll(".step-panel"));
 const STEP_ORDER = [
   "read-device",
@@ -254,13 +253,6 @@ const RADIO_PRESETS = {
   }
 };
 
-const SENSITIVE_COMMAND_PREFIXES = [
-  "set mqtt.wifi.pass ",
-  "set prv.key ",
-  "set guest.password ",
-  "password "
-];
-
 const MQTT_MAX_BROKERS = 6;
 const LOGICAL_MQTT_BROKER_MAX = 3;
 
@@ -270,10 +262,6 @@ function humanFlashPackage(board) {
     return "full + update";
   }
   return "full";
-}
-
-function resolveArtifactUrl(path) {
-  return new URL(path, window.location.href).toString();
 }
 
 function browserCaptureKey(boardId) {
@@ -1577,11 +1565,10 @@ function renderGuidedConsole() {
     guidedConsole.innerHTML = `
       <div class="guided-console__shell">
         ${guidedTopbar(stepLabel)}
-        <h2>Main or dev firmware?</h2>
-        <p>Main is stable. Dev is experimental and should only be used when you specifically need it.</p>
+        <h2>Stable firmware release</h2>
+        <p>Only signed, stable firmware that is present in this release is available.</p>
         <div class="guided-actions">
-          ${guidedActionButton("Main firmware", "branch-main")}
-          ${guidedActionButton("Dev firmware", "branch-dev", "secondary")}
+          ${guidedActionButton("Continue with stable firmware", "branch-main")}
         </div>
       </div>`;
     return;
@@ -1685,25 +1672,8 @@ function renderGuidedConsole() {
 }
 
 async function setGuidedFirmwareBranch(branch) {
-  const selectedBoardId = currentBoard?.id || "";
-  if (branch === "dev") {
-    const proceed = window.confirm("Dev firmware is experimental and may be unstable. Continue?");
-    if (!proceed) return;
-    try {
-      window.localStorage.setItem(DEV_WARNING_SHOWN_KEY, "true");
-    } catch (e) {}
-  }
-  currentFirmwareBranch = branch;
-  if (firmwareBranchSelect) firmwareBranchSelect.value = branch;
-  try {
-    window.localStorage.setItem(FIRMWARE_BRANCH_STORAGE_KEY, branch);
-  } catch (e) {}
-  appendLog(`Firmware branch changed to: ${branch}`);
-  await loadFirmwareDataForBranch(branch);
-  const refreshedBoard = firmwareData.boards.find((board) => board.id === selectedBoardId);
-  if (refreshedBoard) {
-    setBoardDetails(refreshedBoard, { userSelected: true });
-  }
+  if (branch !== "main") throw new Error("Development firmware is not published in this release");
+  appendLog("Stable signed firmware selected.");
   guidedBranchConfirmed = true;
   setActiveStep("flash-firmware");
   renderGuidedConsole();
@@ -2289,66 +2259,6 @@ function setBoardDetails(board, { userSelected = false } = {}) {
   renderGuidedConsole();
 }
 
-async function loadFirmwareDataForBranch(branch) {
-  appendLog(`Loading firmware data for branch: ${branch}...`);
-
-  try {
-    // Determine the firmware data URL based on branch
-    const isMain = branch === "main";
-    const firmwareDataUrl = isMain
-      ? "/assets/firmware-data.js"
-      : `/assets/firmware-data-${branch}.js`;
-
-    // Fetch the firmware data script
-    const response = await fetch(firmwareDataUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ${branch} firmware data`);
-    }
-
-    // Get the script text and evaluate it
-    const scriptText = await response.text();
-
-    // Create a new script element and execute it
-    const script = document.createElement("script");
-    script.textContent = scriptText;
-    document.head.appendChild(script);
-
-    // Update the global FIRMWARE_DATA
-    if (window.FIRMWARE_DATA && window.FIRMWARE_DATA.boards) {
-      firmwareData = window.FIRMWARE_DATA;
-      boardManifestCache.clear();
-
-      // Update version display to show branch
-      const branchLabel = isMain ? "" : ` (${branch.toUpperCase()})`;
-      firmwareVersion.textContent = `${firmwareData.boards[0]?.firmwareVersion || "Unknown"}${branchLabel}`;
-      firmwareFamily.textContent = `${firmwareData.boards[0]?.firmwareName || "meshcore-mqtt"}${branchLabel}`;
-
-      // Repopulate boards with new data
-      populateBoards();
-
-      // If a board was selected, refresh its details
-      if (currentBoard) {
-        const newBoard = firmwareData.boards.find((b) => b.id === currentBoard.id);
-        if (newBoard) {
-          setBoardDetails(newBoard, { userSelected: true });
-        }
-      }
-
-      appendLog(`Loaded ${firmwareData.boards.length} board definitions for ${branch} branch.`);
-    } else {
-      throw new Error("Invalid firmware data format");
-    }
-  } catch (error) {
-    appendLog(`Warning: Could not load ${branch} firmware data: ${error.message}`);
-    // Revert to main if dev fails
-    if (branch !== "main") {
-      firmwareBranchSelect.value = "main";
-      currentFirmwareBranch = "main";
-      appendLog("Reverted to main firmware branch.");
-    }
-  }
-}
-
 function populateBoards() {
   boardSelect.innerHTML = "";
   filteredBoards = [...firmwareData.boards];
@@ -2517,9 +2427,20 @@ async function requestPreferredPort() {
   return navigator.serial.requestPort();
 }
 
+function serialContextForLine(line) {
+  for (const listener of lineListeners) {
+    try {
+      if (listener.predicate(line) && listener.context?.sensitive) return listener.context;
+    } catch (_error) {
+      // A listener predicate failure is handled by its owner; it must not expose data here.
+    }
+  }
+  return activeSerialRequest?.sensitive ? activeSerialRequest : null;
+}
+
 function pushSerialLine(line) {
   if (!line.trim()) return;
-  appendLog(`[rx] ${line}`);
+  appendLog(`[rx] ${security.redactSerialText(line, serialContextForLine(line))}`);
   registerMqttRuntimeLine(line);
   notifyLineListeners(line);
 }
@@ -2559,10 +2480,12 @@ async function readSerialLoop() {
   serialLoopRunning = false;
 }
 
-function waitForLine(predicate, timeoutMs = 6000) {
-  return new Promise((resolve, reject) => {
-    const listener = {
+function waitForLine(predicate, timeoutMs = 6000, context = null) {
+  let listener;
+  const promise = new Promise((resolve, reject) => {
+    listener = {
       predicate,
+      context,
       resolve: (line) => {
         clearTimeout(timer);
         resolve(line);
@@ -2578,8 +2501,14 @@ function waitForLine(predicate, timeoutMs = 6000) {
       reject(new Error("Timed out waiting for device response"));
     }, timeoutMs);
 
+    listener.timer = timer;
     lineListeners.push(listener);
   });
+  promise.cancel = () => {
+    clearTimeout(listener?.timer);
+    lineListeners = lineListeners.filter((item) => item !== listener);
+  };
+  return promise;
 }
 
 function getRadioValues() {
@@ -2809,12 +2738,7 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
 }
 
 function maskSensitiveCommand(command) {
-  if (/^set mqtt\.\d+\.password\s+/i.test(command)) {
-    return command.replace(/^(set mqtt\.\d+\.password\s+).+$/i, "$1********");
-  }
-  const prefix = SENSITIVE_COMMAND_PREFIXES.find((value) => command.startsWith(value));
-  if (!prefix) return command;
-  return `${prefix}********`;
+  return security.maskSensitiveCommand(command);
 }
 
 function commandText(entry) {
@@ -2867,36 +2791,76 @@ function getCommandSettleDelay(command) {
   return 450;
 }
 
-async function runCommandExpectReply(command, predicate = (value) => value.includes("->"), timeoutMs = 6000) {
-  logSerialCommand(command);
-  await writeSerialCommand(command);
-  const line = await waitForLine(predicate, timeoutMs);
-  appendLog(`[match] ${line}`);
-  await delay(getCommandSettleDelay(command));
-  return line;
+function createSerialRequest(commandOrRequest, predicate, timeoutMs) {
+  const supplied = typeof commandOrRequest === "object" ? commandOrRequest : { command: commandOrRequest };
+  const command = supplied.command;
+  const classified = security.classifySerialCommand(command);
+  return {
+    command,
+    predicate: supplied.predicate || supplied.replyPredicate || predicate || ((value) => value.includes("->")),
+    timeoutMs: supplied.timeoutMs || timeoutMs || 6000,
+    sensitive: supplied.sensitive ?? classified.sensitive,
+    label: supplied.label || classified.label
+  };
+}
+
+async function runCommandExpectReply(commandOrRequest, predicate = (value) => value.includes("->"), timeoutMs = 6000) {
+  const request = createSerialRequest(commandOrRequest, predicate, timeoutMs);
+  const previousRequest = activeSerialRequest;
+  activeSerialRequest = request;
+  const waiter = waitForLine(request.predicate, request.timeoutMs, request);
+  try {
+    logSerialCommand(request.command);
+    try {
+      await writeSerialCommand(request.command);
+    } catch (error) {
+      waiter.cancel();
+      throw error;
+    }
+    const line = await waiter;
+    appendLog(`[match] ${security.redactSerialText(line, request)}`);
+    await delay(getCommandSettleDelay(request.command));
+    return line;
+  } finally {
+    waiter.cancel();
+    if (activeSerialRequest === request) activeSerialRequest = previousRequest;
+  }
 }
 
 async function runCommandExpectOk(command, timeoutMs = 6000) {
-  logSerialCommand(command);
-  await writeSerialCommand(command);
-
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const remaining = Math.max(1, deadline - Date.now());
-    const line = await waitForLine((value) => value.includes("->"), remaining);
-    if (/->\s*OK\b/i.test(line)) {
-      appendLog(`[match] ${line}`);
-      await delay(getCommandSettleDelay(command));
-      return line;
+  const request = createSerialRequest({ command, timeoutMs });
+  const previousRequest = activeSerialRequest;
+  activeSerialRequest = request;
+  const deadline = Date.now() + request.timeoutMs;
+  let waiter = waitForLine(request.predicate, request.timeoutMs, request);
+  try {
+    logSerialCommand(command);
+    try {
+      await writeSerialCommand(command);
+    } catch (error) {
+      waiter.cancel();
+      throw error;
     }
-    if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
-      appendLog(`[match] ${line}`);
-      throw new Error(line);
+    while (Date.now() < deadline) {
+      const line = await waiter;
+      if (/->\s*OK\b/i.test(line)) {
+        appendLog(`[match] ${security.redactSerialText(line, request)}`);
+        await delay(getCommandSettleDelay(command));
+        return line;
+      }
+      if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
+        appendLog(`[match] ${security.redactSerialText(line, request)}`);
+        throw new Error(request.sensitive ? `Device rejected ${request.label || "sensitive setting"}` : line);
+      }
+      appendLog(`[skip] ${security.redactSerialText(line, request)}`);
+      const remaining = Math.max(1, deadline - Date.now());
+      waiter = waitForLine(request.predicate, remaining, request);
     }
-    appendLog(`[skip] ${line}`);
+    throw new Error("Timed out waiting for OK response");
+  } finally {
+    waiter.cancel();
+    if (activeSerialRequest === request) activeSerialRequest = previousRequest;
   }
-
-  throw new Error("Timed out waiting for OK response");
 }
 
 async function resetSerialConsole() {
@@ -3046,6 +3010,7 @@ function stamp() {
 }
 
 function appendLog(message) {
+  message = security.redactSerialText(message);
   const line = document.createElement("p");
   const timestamp = document.createElement("span");
   const stampedTime = `[${stamp()}]`;
@@ -3148,7 +3113,7 @@ async function runCommands(commands) {
     }
 
     if (entry.replyPredicate) {
-      await runCommandExpectReply(entry.command, entry.replyPredicate, entry.timeoutMs || 6000);
+      await runCommandExpectReply({ ...entry, predicate: entry.replyPredicate });
       continue;
     }
 
@@ -3235,7 +3200,13 @@ async function readMqttStatus(timeoutMs = 8000) {
 }
 
 async function readSettingValue(key, timeoutMs = 6000) {
-  const line = await runCommandExpectReply(`get ${key}`, (value) => value.includes("->"), timeoutMs);
+  const line = await runCommandExpectReply({
+    command: `get ${key}`,
+    predicate: (value) => value.includes("->"),
+    timeoutMs,
+    sensitive: security.isSensitiveSettingKey(key),
+    label: key
+  });
   const match = line.match(/->\s*(.+)$/);
   const rawValue = match ? match[1].trim() : "";
   return {
@@ -3653,60 +3624,24 @@ function createFlashTerminal() {
   };
 }
 
-async function fetchBinary(path) {
-  const url = new URL(resolveArtifactUrl(path), window.location.href);
-  url.searchParams.set("v", FIRMWARE_FETCH_VERSION);
-  const response = await fetch(url.toString(), { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${path} (${response.status})`);
-  }
-  return new Uint8Array(await response.arrayBuffer());
-}
-
-async function fetchJson(path) {
-  const url = new URL(resolveArtifactUrl(path), window.location.href);
-  url.searchParams.set("v", FIRMWARE_FETCH_VERSION);
-  const response = await fetch(url.toString(), { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${path} (${response.status})`);
-  }
-  return response.json();
-}
-
-async function loadBoardManifest(board) {
-  if (!board?.manifestPath) return null;
-  if (boardManifestCache.has(board.id)) {
-    return boardManifestCache.get(board.id);
-  }
-
-  const manifest = await fetchJson(board.manifestPath);
-  boardManifestCache.set(board.id, manifest);
-  return manifest;
-}
-
-function parseFlashOffset(offset) {
-  if (typeof offset === "number") return offset;
-  if (typeof offset !== "string") {
-    throw new Error("Invalid flash offset in manifest");
-  }
-
-  const trimmed = offset.trim().toLowerCase();
-  return trimmed.startsWith("0x") ? Number.parseInt(trimmed, 16) : Number.parseInt(trimmed, 10);
-}
-
 async function buildFlashArtifacts(board, kind) {
-  const imageName = kind === "update" ? (board.artifacts.update || board.artifacts.full) : board.artifacts.full;
-  const imagePath = `${board.artifactBase}${imageName}`;
-  const imageData = await fetchBinary(imagePath);
-  appendLog(`Fetched ${imageName} (${imageData.byteLength} bytes).`);
-  return [
-    {
-      imageName,
-      label: kind,
-      address: kind === "update" ? 0x10000 : 0x0,
-      data: await blobToBinaryString(new Blob([imageData]))
-    }
-  ];
+  const verified = await security.loadVerifiedFirmware({
+    manifestPath: board.manifestPath,
+    boardId: board.id,
+    mode: kind,
+    pageHref: window.location.href
+  });
+  const artifacts = [];
+  for (const artifact of verified.artifacts) {
+    appendLog(`Verified ${artifact.imageName} (${artifact.bytes.byteLength} bytes, SHA-256 ${artifact.sha256}).`);
+    artifacts.push({
+      ...artifact,
+      label: artifact.name,
+      address: artifact.offset,
+      data: await blobToBinaryString(new Blob([artifact.bytes]))
+    });
+  }
+  return { ...verified, artifacts };
 }
 
 async function blobToBinaryString(blob) {
@@ -3723,10 +3658,11 @@ async function flashFirmware(kind) {
     appendLog("Flash already in progress.");
     return;
   }
-  if (!currentBoard?.artifactBase || !currentBoard?.chipFamily) {
+  if (!currentBoard?.manifestPath || !currentBoard?.chipFamily) {
     appendLog("Firmware artifact is not published for this board yet.");
     return;
   }
+  const selectedBoard = currentBoard;
   if (!window.isSecureContext && location.hostname !== "127.0.0.1" && location.hostname !== "localhost") {
     throw new Error("Flashing requires HTTPS or localhost");
   }
@@ -3741,6 +3677,13 @@ async function flashFirmware(kind) {
   let flashArtifacts = [];
 
   try {
+    stateFlash.textContent = kind === "full" ? "Verifying full image" : "Verifying update package";
+    setFlashProgress(4, "Verifying signed firmware");
+    appendLog("Downloading and verifying the signed firmware package before opening Web Serial.");
+    const verifiedFirmware = await buildFlashArtifacts(selectedBoard, kind);
+    flashArtifacts = verifiedFirmware.artifacts;
+    appendLog(`Signed manifest authorized ${flashArtifacts.length} ${kind} segment${flashArtifacts.length === 1 ? "" : "s"}.`);
+
     if (serialConnected) {
       appendLog("Disconnecting the current serial session before flashing.");
       await disconnectSerialSession({ silent: true });
@@ -3756,7 +3699,6 @@ async function flashFirmware(kind) {
     flashButton.disabled = true;
     updateButton.disabled = true;
     setPanelState(flashState, "Connecting", "panel__status--busy");
-    stateFlash.textContent = kind === "full" ? "Preparing full image" : "Preparing update image";
     setFlashProgress(4, "Loading browser flasher");
 
     appendLog("Loading browser flasher library.");
@@ -3765,7 +3707,6 @@ async function flashFirmware(kind) {
 
     setFlashProgress(16, "Connecting to bootloader");
     appendLog("Connecting to bootloader.");
-    flashArtifacts = await buildFlashArtifacts(currentBoard, kind);
     appendLog(
       kind === "update"
         ? `Prepared ${flashArtifacts.length} image for update flash.`
@@ -3799,11 +3740,13 @@ async function flashFirmware(kind) {
       Transport,
       port,
       flashOptions,
-      boardLabel: currentBoard.label
+      boardLabel: selectedBoard.label
     });
     const { chip, loader } = connection;
     transport = connection.transport;
-    appendLog(`Bootloader connected: ${chip || currentBoard.chipFamily}`);
+    const detectedChipName = loader.chip?.CHIP_NAME;
+    security.assertChipCompatibility(verifiedFirmware.board, flashArtifacts, detectedChipName);
+    appendLog(`Bootloader connected: ${chip || detectedChipName}. Signed image headers match ${detectedChipName}.`);
     setFlashProgress(kind === "full" ? 26 : 24, kind === "full" ? "Erasing and writing full image" : "Starting flash");
     appendLog("Reading flash identity.");
     await loader.flashId();
@@ -3834,7 +3777,7 @@ async function flashFirmware(kind) {
     setPanelState(serialState, "Reconnect serial", "panel__status--idle");
     setPanelState(verifyState, "Waiting", "panel__status--idle");
     updateSerialButton();
-    appendLog(`Flash completed successfully for ${currentBoard.label}. Reconnect serial, then apply the selected device, WiFi, and MQTT settings.`);
+    appendLog(`Flash completed successfully for ${selectedBoard.label}. Reconnect serial, then apply the selected device, WiFi, and MQTT settings.`);
     showStepContinue("flash-firmware", "Firmware flashed — reconnect serial then continue to configure");
   } finally {
     flashingNow = false;
@@ -3970,8 +3913,6 @@ guidedConsole?.addEventListener("click", async (event) => {
       }
     } else if (action === "branch-main") {
       await setGuidedFirmwareBranch("main");
-    } else if (action === "branch-dev") {
-      await setGuidedFirmwareBranch("dev");
     } else if (action === "flash-full") {
       const confirmed = window.confirm("Full flash can erase saved settings. Continue?");
       if (confirmed) {
@@ -4181,61 +4122,6 @@ downloadBackupButton.addEventListener("click", () => {
   } catch (error) {
     appendLog(`Backup download failed: ${error.message}`);
   }
-});
-
-// Firmware branch selector
-firmwareBranchSelect?.addEventListener("change", async () => {
-  const branch = firmwareBranchSelect.value;
-  currentFirmwareBranch = branch;
-
-  // Save branch preference
-  try {
-    window.localStorage.setItem(FIRMWARE_BRANCH_STORAGE_KEY, branch);
-  } catch (e) {
-    // ignore storage errors
-  }
-
-  // Show warning for dev branch
-  if (branch === "dev") {
-    const alreadyWarned = () => {
-      try {
-        return window.localStorage.getItem(DEV_WARNING_SHOWN_KEY) === "true";
-      } catch (e) {
-        return false;
-      }
-    };
-
-    if (!alreadyWarned()) {
-      const proceed = window.confirm(
-        "WARNING: You are selecting the DEVELOPMENT firmware branch.\n\n" +
-        "This is an unstable, experimental build that may contain bugs, " +
-        "incomplete features, or breaking changes.\n\n" +
-        "DO NOT use this for production devices.\n\n" +
-        "Continue?"
-      );
-      if (!proceed) {
-        // Revert to main
-        firmwareBranchSelect.value = "main";
-        currentFirmwareBranch = "main";
-        try {
-          window.localStorage.setItem(FIRMWARE_BRANCH_STORAGE_KEY, "main");
-        } catch (e) {
-          // ignore
-        }
-        return;
-      }
-      // Mark that we've shown the warning
-      try {
-        window.localStorage.setItem(DEV_WARNING_SHOWN_KEY, "true");
-      } catch (e) {
-        // ignore
-      }
-    }
-  }
-
-  appendLog(`Firmware branch changed to: ${branch}`);
-  // Reload firmware data for the selected branch
-  await loadFirmwareDataForBranch(branch);
 });
 
 flashButton.addEventListener("click", async () => {
@@ -4630,14 +4516,11 @@ updatePrimaryActionAvailability();
   }
 })();
 
-// Initialize firmware branch from storage
-(function initFirmwareBranch() {
+// Remove preferences that referenced the retired, unpublished development catalog.
+(function retireDevelopmentCatalog() {
   try {
-    const savedBranch = window.localStorage.getItem(FIRMWARE_BRANCH_STORAGE_KEY);
-    if (savedBranch && (savedBranch === "main" || savedBranch === "dev")) {
-      firmwareBranchSelect.value = savedBranch;
-      currentFirmwareBranch = savedBranch;
-    }
+    window.localStorage.removeItem("meshcore-mqtt-firmware-branch");
+    window.localStorage.removeItem("meshcore-mqtt-dev-warning-shown");
   } catch (e) {
     // ignore storage errors
   }

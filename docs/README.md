@@ -20,15 +20,14 @@ devices. It combines three jobs in one interface:
 - browser-based firmware flashing using `esptool-js`
 - post-flash device configuration and MQTT verification over Web Serial
 
-The repository also includes the published firmware binaries, per-board manifests,
+The repository also includes the published firmware binaries, a signed release manifest,
 Nginx configuration, and container definitions used to host the flasher.
 
 ## Quick Facts
 
 - No frontend build step is required. The application is served directly from committed
   HTML, CSS, JavaScript, and firmware assets.
-- Stable and development firmware catalogs are selected in the browser by switching
-  between `assets/firmware-data.js` and `assets/firmware-data-dev.js`.
+- Both UIs use identical stable catalogs generated from one signed release inventory.
 - Device state and partially completed configuration are stored in browser
   `localStorage`, scoped by board ID.
 - The browser must support Web Serial and must run in a secure context such as HTTPS
