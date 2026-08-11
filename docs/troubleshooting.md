@@ -78,17 +78,19 @@ Actions:
 - rerun the targeted apply path
 - check whether `show mqtt` reports `mqtt.connected=true`
 
-## Dev Catalog Does Not Load
+## Firmware Verification Stops Before The Serial Chooser
 
 Cause:
 
-- `/assets/firmware-data-dev.js` is missing or invalid
+- the signed manifest is missing, malformed, or has an invalid signature
+- an artifact was redirected cross-origin or does not match its signed size or SHA-256
+- an ESP image header does not match the signed chip ID
 
 Actions:
 
-- inspect the serial log warning
-- confirm the dev asset exists and defines `window.FIRMWARE_DATA`
-- note that the UI falls back to the stable `main` catalog automatically
+- do not continue with the unverified binary
+- refresh once to rule out a stale cache, then report the exact verification error
+- release maintainers should run `node scripts/verify-firmware-release.mjs` and republish the inventory, manifest, catalogs, and binaries atomically
 
 ## Backup File Does Not Include Everything You Expected
 

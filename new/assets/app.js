@@ -64,6 +64,9 @@
   /* ── Constants (mirrors original source-of-truth flasher) ── */
   const MQTT_MAX_BROKERS = 6;
   const FIRMWARE_FETCH_VERSION = "20260309-2102";
+  const security = window.MeshCoreSecurity;
+
+  if (!security) throw new Error("Firmware security helper failed to load");
 
   // Default broker 1 credentials match the original flasher's prefill.
   const BROKER1_DEFAULTS = {
@@ -71,13 +74,6 @@
     username: "observer",
     password: "observer-password"
   };
-
-  const SENSITIVE_COMMAND_PREFIXES = [
-    "set mqtt.wifi.pass ",
-    "set prv.key ",
-    "set guest.password ",
-    "password "
-  ];
 
   /* ── State ─────────────────────────────────── */
   let firmwareData = window.FIRMWARE_DATA || { boards: [] };
@@ -94,6 +90,7 @@
   let serialCliReady = false;
   let preferredSerialPortInfo = null;
   let scheduledSerialDisconnect = null;
+  let activeSerialRequest = null;
 
   let captured = null;
   let flashComplete = false;
@@ -122,6 +119,7 @@
   }
 
   function log(line) {
+    line = security.redactSerialText(line);
     if (!logPane) { console.log("[log]", line); return; }
     const ts = new Date().toLocaleTimeString("en-GB", { hour12: false });
     const p = document.createElement("div");
@@ -141,8 +139,8 @@
 
   function clearLog() { if (logPane) logPane.innerHTML = ""; logLines = []; }
 
-  function ok(msg) { log("OK: " + msg); toast(msg, "success"); }
-  function fail(msg) { log("FAIL: " + msg); toast(msg, "error"); }
+  function ok(msg) { const safeMessage = security.redactSerialText(msg); log("OK: " + safeMessage); toast(safeMessage, "success"); }
+  function fail(msg) { const safeMessage = security.redactSerialText(msg); log("FAIL: " + safeMessage); toast(safeMessage, "error"); }
 
   window.addEventListener("error", (e) => { try { log("JS error: " + (e.message || e)); } catch (_) {} });
   window.addEventListener("unhandledrejection", (e) => {
@@ -224,20 +222,20 @@
     remaining.forEach((listener) => listener.reject(new Error(errorMessage)));
   }
 
-  function maskSensitiveLine(line) {
-    if (!line) return line;
-    // Firmware echoes the new admin password in the reply to `password <new>`
-    if (/password now:\s*\S+/i.test(line)) {
-      return line.replace(/(password now:\s*)\S+/i, "$1********");
+  function serialContextForLine(line) {
+    for (const listener of lineListeners) {
+      try {
+        if (listener.predicate(line) && listener.context?.sensitive) return listener.context;
+      } catch (_error) {
+        // A listener predicate failure is handled by its owner; it must not expose data here.
+      }
     }
-    // Guard raw key/password readbacks (64-128 hex chars = prv.key blob)
-    if (/^[0-9a-fA-F]{64,128}$/.test(String(line).trim())) return "********";
-    return line;
+    return activeSerialRequest?.sensitive ? activeSerialRequest : null;
   }
 
   function pushSerialLine(line) {
     if (!line.trim()) return;
-    if (line.length < 300) log("[rx] " + maskSensitiveLine(line));
+    if (line.length < 300) log("[rx] " + security.redactSerialText(line, serialContextForLine(line)));
     notifyLineListeners(line);
   }
 
@@ -269,10 +267,12 @@
     serialLoopRunning = false;
   }
 
-  function waitForLine(predicate, timeoutMs = 6000) {
-    return new Promise((resolve, reject) => {
-      const listener = {
+  function waitForLine(predicate, timeoutMs = 6000, context = null) {
+    let listener;
+    const promise = new Promise((resolve, reject) => {
+      listener = {
         predicate,
+        context,
         resolve: (line) => { clearTimeout(timer); resolve(line); },
         reject: (error) => { clearTimeout(timer); reject(error); }
       };
@@ -280,8 +280,14 @@
         lineListeners = lineListeners.filter((item) => item !== listener);
         reject(new Error("Timed out waiting for device response"));
       }, timeoutMs);
+      listener.timer = timer;
       lineListeners.push(listener);
     });
+    promise.cancel = () => {
+      clearTimeout(listener?.timer);
+      lineListeners = lineListeners.filter((item) => item !== listener);
+    };
+    return promise;
   }
 
   function samePortInfo(left, right) {
@@ -401,12 +407,7 @@
   }
 
   function maskSensitiveCommand(command) {
-    if (/^set mqtt\.\d+\.password\s+/i.test(command)) {
-      return command.replace(/^(set mqtt\.\d+\.password\s+).+$/i, "$1********");
-    }
-    const prefix = SENSITIVE_COMMAND_PREFIXES.find((value) => command.startsWith(value));
-    if (!prefix) return command;
-    return `${prefix}********`;
+    return security.maskSensitiveCommand(command);
   }
 
   function commandText(entry) { return typeof entry === "string" ? entry : entry.command; }
@@ -426,38 +427,86 @@
     return 450;
   }
 
-  async function runCommandExpectReply(command, predicate = (value) => value.includes("->"), timeoutMs = 6000) {
-    logSerialCommand(command);
-    await writeSerialCommand(command);
-    const line = await waitForLine(predicate, timeoutMs);
-    log(`[match] ${line}`);
-    await delay(getCommandSettleDelay(command));
-    return line;
+  function createSerialRequest(commandOrRequest, predicate, timeoutMs) {
+    const supplied = typeof commandOrRequest === "object" ? commandOrRequest : { command: commandOrRequest };
+    const command = supplied.command;
+    const classified = security.classifySerialCommand(command);
+    return {
+      command,
+      predicate: supplied.predicate || supplied.replyPredicate || predicate || ((value) => value.includes("->")),
+      timeoutMs: supplied.timeoutMs || timeoutMs || 6000,
+      sensitive: supplied.sensitive ?? classified.sensitive,
+      label: supplied.label || classified.label
+    };
+  }
+
+  async function runCommandExpectReply(commandOrRequest, predicate = (value) => value.includes("->"), timeoutMs = 6000) {
+    const request = createSerialRequest(commandOrRequest, predicate, timeoutMs);
+    const previousRequest = activeSerialRequest;
+    activeSerialRequest = request;
+    const waiter = waitForLine(request.predicate, request.timeoutMs, request);
+    try {
+      logSerialCommand(request.command);
+      try {
+        await writeSerialCommand(request.command);
+      } catch (error) {
+        waiter.cancel();
+        throw error;
+      }
+      const line = await waiter;
+      log(`[match] ${security.redactSerialText(line, request)}`);
+      await delay(getCommandSettleDelay(request.command));
+      return line;
+    } finally {
+      waiter.cancel();
+      if (activeSerialRequest === request) activeSerialRequest = previousRequest;
+    }
   }
 
   async function runCommandExpectOk(command, timeoutMs = 6000) {
-    logSerialCommand(command);
-    await writeSerialCommand(command);
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const remaining = Math.max(1, deadline - Date.now());
-      const line = await waitForLine((value) => value.includes("->"), remaining);
-      if (/->\s*OK\b/i.test(line)) {
-        log(`[match] ${line}`);
-        await delay(getCommandSettleDelay(command));
-        return line;
+    const request = createSerialRequest({ command, timeoutMs });
+    const previousRequest = activeSerialRequest;
+    activeSerialRequest = request;
+    const deadline = Date.now() + request.timeoutMs;
+    let waiter = waitForLine(request.predicate, request.timeoutMs, request);
+    try {
+      logSerialCommand(command);
+      try {
+        await writeSerialCommand(command);
+      } catch (error) {
+        waiter.cancel();
+        throw error;
       }
-      if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
-        log(`[match] ${line}`);
-        throw new Error(line);
+      while (Date.now() < deadline) {
+        const line = await waiter;
+        if (/->\s*OK\b/i.test(line)) {
+          log(`[match] ${security.redactSerialText(line, request)}`);
+          await delay(getCommandSettleDelay(command));
+          return line;
+        }
+        if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
+          log(`[match] ${security.redactSerialText(line, request)}`);
+          throw new Error(request.sensitive ? `Device rejected ${request.label || "sensitive setting"}` : line);
+        }
+        log(`[skip] ${security.redactSerialText(line, request)}`);
+        const remaining = Math.max(1, deadline - Date.now());
+        waiter = waitForLine(request.predicate, remaining, request);
       }
-      log(`[skip] ${line}`);
+      throw new Error("Timed out waiting for OK response");
+    } finally {
+      waiter.cancel();
+      if (activeSerialRequest === request) activeSerialRequest = previousRequest;
     }
-    throw new Error("Timed out waiting for OK response");
   }
 
   async function readSettingValue(key, timeoutMs = 6000) {
-    const line = await runCommandExpectReply(`get ${key}`, (value) => value.includes("->"), timeoutMs);
+    const line = await runCommandExpectReply({
+      command: `get ${key}`,
+      predicate: (value) => value.includes("->"),
+      timeoutMs,
+      sensitive: security.isSensitiveSettingKey(key),
+      label: key
+    });
     const match = line.match(/->\s*(.+)$/);
     const rawValue = match ? match[1].trim() : "";
     // Firmware replies to `get` as "  -> > value" — strip the leading ">" marker
@@ -478,7 +527,7 @@
     for (const entry of commands) {
       if (typeof entry === "string") { await runCommandExpectOk(entry); continue; }
       if (entry.replyPredicate) {
-        await runCommandExpectReply(entry.command, entry.replyPredicate, entry.timeoutMs || 6000);
+        await runCommandExpectReply({ ...entry, predicate: entry.replyPredicate });
         continue;
       }
       try {
@@ -1237,16 +1286,6 @@
     return esptoolPromise;
   }
 
-  function resolveArtifactUrl(path) { return new URL(path, window.location.href).toString(); }
-
-  async function fetchBinary(path) {
-    const url = new URL(resolveArtifactUrl(path), window.location.href);
-    url.searchParams.set("v", FIRMWARE_FETCH_VERSION);
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    if (!response.ok) throw new Error(`Failed to fetch ${path} (${response.status})`);
-    return new Uint8Array(await response.arrayBuffer());
-  }
-
   async function blobToBinaryString(u8) {
     let result = "";
     for (let i = 0; i < u8.length; i++) result += String.fromCharCode(u8[i]);
@@ -1254,16 +1293,23 @@
   }
 
   async function buildFlashArtifacts(board, kind) {
-    const imageName = kind === "update" ? (board.artifacts.update || board.artifacts.full) : board.artifacts.full;
-    const imagePath = `${board.artifactBase}${imageName}`;
-    const imageData = await fetchBinary(imagePath);
-    log(`Fetched ${imageName} (${imageData.byteLength} bytes).`);
-    return [{
-      imageName,
-      label: kind,
-      address: kind === "update" ? 0x10000 : 0x0,
-      data: await blobToBinaryString(imageData)
-    }];
+    const verified = await security.loadVerifiedFirmware({
+      manifestPath: board.manifestPath,
+      boardId: board.id,
+      mode: kind,
+      pageHref: window.location.href
+    });
+    const artifacts = [];
+    for (const artifact of verified.artifacts) {
+      log(`Verified ${artifact.imageName} (${artifact.bytes.byteLength} bytes, SHA-256 ${artifact.sha256}).`);
+      artifacts.push({
+        ...artifact,
+        label: artifact.name,
+        address: artifact.offset,
+        data: await blobToBinaryString(artifact.bytes)
+      });
+    }
+    return { ...verified, artifacts };
   }
 
   function isSerialSignalFailure(error) {
@@ -1357,7 +1403,8 @@
     if (flashingNow) { log("Flash already in progress."); return; }
     expandLog();
     if (!currentBoard) { fail("Select a board first"); return; }
-    if (!currentBoard.artifactBase || !currentBoard.chipFamily) { fail("Firmware artifact is not published for this board yet."); return; }
+    if (!currentBoard.manifestPath || !currentBoard.chipFamily) { fail("Firmware artifact is not published for this board yet."); return; }
+    const selectedBoard = currentBoard;
     if (kind === "full") {
       const proceed = window.confirm(
         "Full flash wipes the board — including its MeshCore identity, keys and settings.\n\n" +
@@ -1373,11 +1420,17 @@
 
     flashingNow = true;
     updateDisabledStates();
-    log(`Starting ${kind} flash for ${currentBoard.label}...`);
+    log(`Starting ${kind} flash for ${selectedBoard.label}...`);
     let port = null;
     let transport = null;
 
     try {
+      if (flashText) flashText.textContent = "Verifying signed firmware";
+      log("Downloading and verifying the signed firmware package before opening Web Serial.");
+      const verifiedFirmware = await buildFlashArtifacts(selectedBoard, kind);
+      const flashArtifacts = verifiedFirmware.artifacts;
+      log(`Signed manifest authorized ${flashArtifacts.length} ${kind} segment${flashArtifacts.length === 1 ? "" : "s"}.`);
+
       if (serialConnected) {
         log("Disconnecting the current serial session before flashing.");
         await disconnectSerialSession({ silent: true });
@@ -1390,8 +1443,6 @@
 
       const { ESPLoader, Transport, HardReset } = await loadEspTool();
       if (flashText) flashText.textContent = "Connecting to bootloader";
-
-      const flashArtifacts = await buildFlashArtifacts(currentBoard, kind);
       log(kind === "update" ? `Prepared ${flashArtifacts.length} image for update flash.` : `Prepared ${flashArtifacts.length} image for full flash.`);
 
       const flashOptions = {
@@ -1412,10 +1463,12 @@
         }
       };
 
-      const connection = await connectBootloaderWithFallback({ ESPLoader, HardReset, Transport, port, flashOptions, boardLabel: currentBoard.label });
+      const connection = await connectBootloaderWithFallback({ ESPLoader, HardReset, Transport, port, flashOptions, boardLabel: selectedBoard.label });
       const { chip, loader } = connection;
       transport = connection.transport;
-      log(`Bootloader connected: ${chip || currentBoard.chipFamily}`);
+      const detectedChipName = loader.chip?.CHIP_NAME;
+      security.assertChipCompatibility(verifiedFirmware.board, flashArtifacts, detectedChipName);
+      log(`Bootloader connected: ${chip || detectedChipName}. Signed image headers match ${detectedChipName}.`);
       log("Reading flash identity.");
       await loader.flashId();
       if (kind === "full") log("Full image selected. Flash erase is enabled.");
@@ -1428,7 +1481,7 @@
       flashComplete = true;
       if (flashBar) flashBar.style.width = "100%";
       if (flashText) flashText.textContent = "Flash complete";
-      log(`Flash completed successfully for ${currentBoard.label}. Reconnect serial, then apply settings.`);
+      log(`Flash completed successfully for ${selectedBoard.label}. Reconnect serial, then apply settings.`);
       if (reconnectFlash) reconnectFlash.hidden = false;
       ok(`Flash ${kind} complete`);
       showStep(4);
@@ -1446,7 +1499,7 @@
   }
 
   /* ── Apply ──────────────────────────────────── */
-  function addApplyLog(t) { if (applyLog) { applyLog.textContent += t + "\n"; applyLog.scrollTop = 99999; } }
+  function addApplyLog(t) { if (applyLog) { applyLog.textContent += security.redactSerialText(t) + "\n"; applyLog.scrollTop = 99999; } }
 
   async function applyAll() {
     if (!serialConnected) { fail("Connect serial first"); return; }

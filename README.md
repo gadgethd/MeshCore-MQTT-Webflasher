@@ -10,8 +10,12 @@ This repository ships a static browser application that can:
 - verify the resulting runtime state after configuration
 - serve the flasher through Nginx, Docker Compose, and an optional Cloudflare tunnel
 
-The application is designed for ESP32 and ESP32-S3 MeshCore repeater targets whose
-firmware binaries and manifests are committed into this repository under `firmware/`.
+The current signed release contains ESP32-S3 MeshCore repeater targets whose firmware
+binaries and release inventory are committed into this repository under `firmware/`.
+
+Firmware is authorized by an Ed25519-signed release manifest. Both browser UIs pin the
+public key and verify the manifest signature, artifact origin, SHA-256, exact size,
+flash offset, image header, and connected chip before any erase or write.
 
 ## Quick Start
 
@@ -47,3 +51,20 @@ Project documentation lives in [`docs/`](./docs/README.md).
 - [`docs/architecture.md`](./docs/architecture.md): frontend, serial, flash, and data architecture
 - [`docs/deployment.md`](./docs/deployment.md): local preview, container deployment, publishing workflow
 - [`docs/troubleshooting.md`](./docs/troubleshooting.md): common failure modes and recovery steps
+
+## Release checks
+
+Run the same firmware consistency and security checks used by CI:
+
+```bash
+node scripts/verify-firmware-release.mjs
+node --test tests/*.test.js
+```
+
+The offline signing key is not stored in this repository. Release maintainers regenerate
+the signed manifest and both stable catalogs from `firmware/release-inventory.json` with:
+
+```bash
+FIRMWARE_SIGNING_KEY=/secure/offline/firmware-signing-key.pem \
+  node scripts/build-firmware-release.mjs
+```

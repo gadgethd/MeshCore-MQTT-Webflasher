@@ -1,0 +1,27 @@
+name: Firmware release consistency
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify signed firmware inventory and catalogs
+        run: node scripts/verify-firmware-release.mjs
+      - name: Run security regression tests
+        run: node --test tests/*.test.js
+      - name: Check JavaScript syntax
+        run: |
+          node --check assets/security.js
+          node --check assets/app.js
+          node --check new/assets/app.js

@@ -289,9 +289,8 @@
               <div class="firmware-branch-selector">
                 <label class="field">
                   <span class="field__label">Firmware Branch</span>
-                  <select id="firmware-branch" name="firmwareBranch">
+                  <select id="firmware-branch" name="firmwareBranch" disabled aria-label="Only stable firmware is currently published">
                     <option value="main" selected>Main (Stable)</option>
-                    <option value="dev">Dev (Unstable)</option>
                   </select>
                 </label>
               </div>
@@ -1018,7 +1017,8 @@
     </div>
 
     <div class="toast-container" id="toast-container"></div>
-    <script src="assets/firmware-data.js?v=20260326-1833"></script>
-    <script src="assets/app.js?v=20260426-2120"></script>
+    <script src="assets/firmware-data.js?v=20260811-security1"></script>
+    <script src="assets/security.js?v=20260811-security1"></script>
+    <script src="assets/app.js?v=20260811-security1"></script>
   </body>
 </html>

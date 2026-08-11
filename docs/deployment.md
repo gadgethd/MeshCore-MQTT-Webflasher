@@ -53,7 +53,6 @@ If you want the tunnel service, create `.env` from `.env.example` and set a vali
 
 - `/`: `no-cache`
 - `/assets/firmware-data.js`: `no-cache`
-- `/assets/firmware-data-dev.js`: falls back to the generic JavaScript cache rule
 - `*.bin`: long-lived immutable cache
 - `*.json`: short-lived cache
 - `*.css` and `*.js`: one-day cache
@@ -65,13 +64,17 @@ Operational consequence:
 
 ## Publishing New Firmware
 
-At minimum, publishing a new board build requires:
+Publishing a release is an atomic, signed inventory operation:
 
 1. Copy the new binaries into the correct `firmware/` directory.
-2. Update or replace the board `manifest.json`.
-3. Update `assets/firmware-data.js` for stable builds or `assets/firmware-data-dev.js` for development builds.
-4. If frontend assets changed, update the version query strings in `index.html`.
-5. Rebuild and redeploy the container stack.
+2. Update `firmware/release-inventory.json` with the board metadata, segment paths, offsets, and image-header declarations.
+3. With the offline Ed25519 key available, run `FIRMWARE_SIGNING_KEY=/secure/path/key.pem node scripts/build-firmware-release.mjs`. This writes the signed release manifest and both stable UI catalogs together.
+4. Run `node scripts/verify-firmware-release.mjs` and `node --test tests/*.test.js`. The release check rejects missing, extra, modified, mislabeled, unsigned, overlapping, or wrong-chip artifacts.
+5. If frontend assets changed, update the version query strings in both `index.html` and `new/index.html`.
+6. Commit the inventory, generated manifest, generated catalogs, binaries, and frontend changes together, then rebuild and redeploy the container stack.
+
+The signing key must never be committed or copied into the web root. No development
+catalog is advertised unless a complete signed development release is published.
 
 ## Production Hosting Notes
 

@@ -9,9 +9,10 @@ Runtime pieces:
 - `index.html`: renders the full workflow and all configuration fields
 - `assets/styles.css`: styles and responsive layout
 - `assets/app.js`: state, validation, flashing, serial I/O, verification, local storage
+- `assets/security.js`: pinned signing key, firmware verification, chip checks, serial redaction
 - `assets/vendor/esptool-js-bundle.js`: browser flashing library
-- `assets/firmware-data*.js`: published board catalogs injected into `window.FIRMWARE_DATA`
-- `firmware/`: committed binary payloads and per-board manifest metadata
+- `assets/firmware-data.js` and `new/assets/firmware-data.js`: generated stable board catalogs
+- `firmware/`: committed binaries, release inventory, and signed release manifest
 
 Hosting pieces:
 
@@ -38,8 +39,6 @@ Important state buckets:
 The app uses `localStorage` to persist:
 
 - UI mode
-- selected firmware branch
-- whether the dev-branch warning has been shown
 - captured device snapshots, keyed by board ID
 - saved configuration form values, keyed by board ID
 
@@ -48,14 +47,11 @@ sync between clients.
 
 ## Firmware Catalog Loading
 
-Board metadata is not embedded directly in the HTML. Instead, the app loads one of these
-files at runtime:
+Board metadata is not embedded directly in the HTML. Both UIs load a generated stable catalog:
 
 - `/assets/firmware-data.js`
-- `/assets/firmware-data-dev.js`
 
-The selected file is fetched as text, injected as a `<script>`, and expected to define
-`window.FIRMWARE_DATA`.
+It defines `window.FIRMWARE_DATA`; CI requires the root and `/new/` copies to be identical.
 
 Each board record includes:
 
@@ -73,21 +69,16 @@ Flashing is handled entirely in the browser through `esptool-js`.
 
 Flow:
 
-1. Disconnect any live CLI serial session.
-2. Ask the browser for a serial port.
-3. Load `esptool-js`.
-4. Fetch the selected binary artifact from `firmware/`.
-5. Connect to the bootloader.
-6. Write the image and hard reset the device.
+1. Fetch the same-origin signed release manifest and verify it with the pinned Ed25519 key.
+2. Fetch every selected segment and verify its exact size, full SHA-256, offset, chip ID, and ESP image header before opening Web Serial.
+3. Disconnect any live CLI serial session and ask the browser for a serial port.
+4. Load `esptool-js` and connect to the bootloader.
+5. Require `loader.chip.CHIP_NAME`, signed chip metadata, and every ESP image header to agree.
+6. Write all manifest segments at their signed offsets and hard reset the device.
 7. Release the flash session and prompt for serial reconnect.
 
-Current implementation detail:
-
-- full flash writes one merged image at `0x00000`
-- update flash writes one update image at `0x10000`
-
-Even though manifests publish segmented update data, the current flash routine does not
-iterate over manifest segments.
+Full mode writes the signed merged image. Update mode writes the signed bootloader,
+partition table, `boot_app0`, and application segments at their declared offsets.
 
 ## Serial CLI Architecture
 
@@ -97,7 +88,8 @@ Core behaviors:
 
 - line-oriented serial reader with buffered chunk processing
 - command helpers that wait for `->` replies
-- best-effort command masking for secrets in logs
+- request objects classify private-key and password replies as sensitive before logging
+- defense-in-depth redaction at the DOM/in-memory log and clipboard boundary
 - delayed settling per command type
 - CLI readiness probe through `ver`
 - targeted `get <key>` readback for verification
