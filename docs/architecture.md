@@ -11,14 +11,14 @@ Runtime pieces:
 - `assets/app.js`: state, validation, flashing, serial I/O, verification, local storage
 - `assets/security.js`: pinned signing key, firmware verification, chip checks, serial redaction
 - `assets/vendor/esptool-js-bundle.js`: browser flashing library
-- `assets/firmware-data.js` and `new/assets/firmware-data.js`: generated stable board catalogs
+- `assets/firmware-data.json` and `new/assets/firmware-data.json`: generated stable board catalogs
 - `firmware/`: committed binaries, release inventory, and signed release manifest
 
 Hosting pieces:
 
 - `Dockerfile`: packages the static site into `nginx:1.27-alpine`
 - `nginx.conf`: sets cache policy by asset type
-- `compose.yml`: runs Nginx and an optional `cloudflared` tunnel
+- `compose.yml`: runs Nginx on loopback; the production `cloudflared.service` is external
 
 ## Frontend State Model
 
@@ -47,11 +47,12 @@ sync between clients.
 
 ## Firmware Catalog Loading
 
-Board metadata is not embedded directly in the HTML. Both UIs load a generated stable catalog:
+Board metadata is not embedded directly in the HTML. Both UIs load a generated stable JSON catalog through an external bootstrap module:
 
-- `/assets/firmware-data.js`
+- `/assets/firmware-data.json`
 
-It defines `window.FIRMWARE_DATA`; CI requires the root and `/new/` copies to be identical.
+The bootstrap validates its schema before importing the UI, and CI requires the root and
+`/new/` copies to be identical.
 
 Each board record includes:
 

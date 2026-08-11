@@ -1287,9 +1287,11 @@
   }
 
   async function blobToBinaryString(u8) {
-    let result = "";
-    for (let i = 0; i < u8.length; i++) result += String.fromCharCode(u8[i]);
-    return result;
+    const chunks = [];
+    for (let i = 0; i < u8.length; i += 0x8000) {
+      chunks.push(String.fromCharCode(...u8.subarray(i, i + 0x8000)));
+    }
+    return chunks.join("");
   }
 
   async function buildFlashArtifacts(board, kind) {
@@ -1339,11 +1341,6 @@
       setTimeout(() => reject(new Error(msg || `Timed out after ${ms}ms`)), ms)
     );
     return Promise.race([promise, timer]);
-  }
-
-  function isSerialSignalFailure(error) {
-    const message = String((error && error.message) || error || "");
-    return /setSignals/i.test(message) || /control signals/i.test(message);
   }
 
   async function connectBootloaderWithFallback({ ESPLoader, HardReset, Transport, port, flashOptions, boardLabel }) {

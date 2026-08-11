@@ -22,10 +22,9 @@ Why this works:
 
 ## Container Layout
 
-`compose.yml` defines two services:
+`compose.yml` defines one service:
 
-- `flasher-site`: builds the local `Dockerfile` and exposes port `8080`
-- `cloudflared`: optional tunnel publisher that depends on `flasher-site`
+- `flasher-site`: builds the local `Dockerfile` and binds port `8080` to loopback only
 
 The image copies site assets into `/usr/share/nginx/html`:
 
@@ -37,22 +36,18 @@ It also installs the custom site configuration into:
 
 - `/etc/nginx/conf.d/default.conf`
 
-## Environment Variables
+## External Tunnel
 
-The only environment variable documented in this repo is:
-
-```text
-CLOUDFLARED_TOKEN=
-```
-
-If you want the tunnel service, create `.env` from `.env.example` and set a valid token.
+Compose intentionally does not manage Cloudflare or tunnel credentials. On the production
+host, the externally managed `cloudflared.service` can forward to `http://127.0.0.1:8080`.
+Keep its token and service configuration outside this repository.
 
 ## Cache Policy
 
 `nginx.conf` uses different cache settings by asset type:
 
 - `/`: `no-cache`
-- `/assets/firmware-data.js`: `no-cache`
+- `/assets/firmware-data.json`: `no-cache`
 - `*.bin`: long-lived immutable cache
 - `*.json`: short-lived cache
 - `*.css` and `*.js`: one-day cache
@@ -78,7 +73,7 @@ catalog is advertised unless a complete signed development release is published.
 
 ## Production Hosting Notes
 
-The site must be served over HTTPS outside localhost for Web Serial to work. The bundled
+The site must be served over HTTPS outside localhost for Web Serial to work. An external
 Cloudflare tunnel is one way to achieve that, but any HTTPS reverse proxy or static host
 with the committed files will work if it preserves access to:
 

@@ -16,9 +16,7 @@ const require = createRequire(import.meta.url);
 const security = require(path.join(repositoryRoot, "assets", "security.js"));
 
 function parseCatalog(source) {
-  const match = source.match(/^window\.FIRMWARE_DATA\s*=\s*([\s\S]+);\s*$/);
-  if (!match) throw new Error("Catalog must be a JSON assignment to window.FIRMWARE_DATA");
-  return JSON.parse(match[1]);
+  return JSON.parse(source);
 }
 
 async function listBins(directory) {
@@ -83,9 +81,10 @@ async function main() {
   const committedBins = new Set((await listBins(path.join(repositoryRoot, "firmware"))).map((file) => path.resolve(file)));
   assert.deepEqual(advertisedBins, committedBins, "every committed firmware binary must be advertised exactly once or shared explicitly");
 
-  const rootCatalog = parseCatalog(await readFile(path.join(repositoryRoot, "assets", "firmware-data.js"), "utf8"));
-  const newCatalog = parseCatalog(await readFile(path.join(repositoryRoot, "new", "assets", "firmware-data.js"), "utf8"));
+  const rootCatalog = parseCatalog(await readFile(path.join(repositoryRoot, "assets", "firmware-data.json"), "utf8"));
+  const newCatalog = parseCatalog(await readFile(path.join(repositoryRoot, "new", "assets", "firmware-data.json"), "utf8"));
   assert.deepEqual(rootCatalog, newCatalog, "legacy and /new/ catalogs must be identical");
+  assert.equal(rootCatalog.schemaVersion, 1, "catalog schema version is unsupported");
   assert.equal(rootCatalog.boards.length, manifest.boards.length, "catalog board count differs from manifest");
   rootCatalog.boards.forEach((catalogBoard) => {
     const signedBoard = manifest.boards.find((board) => board.id === catalogBoard.id);
@@ -99,11 +98,13 @@ async function main() {
   });
 
   assert(!existsSync(path.join(repositoryRoot, "assets", "firmware-data-dev.js")), "retired dev catalog must not be present");
+  assert(!existsSync(path.join(repositoryRoot, "assets", "firmware-data.js")), "executable catalog must not be present");
+  assert(!existsSync(path.join(repositoryRoot, "new", "assets", "firmware-data.js")), "executable /new/ catalog must not be present");
   for (const htmlPath of ["index.html", "new/index.html"]) {
     const html = await readFile(path.join(repositoryRoot, htmlPath), "utf8");
     const securityIndex = html.indexOf(htmlPath.startsWith("new/") ? "../assets/security.js" : "assets/security.js");
-    const appIndex = html.indexOf("assets/app.js");
-    assert(securityIndex >= 0 && securityIndex < appIndex, `${htmlPath} must load the pinned security helper before app.js`);
+    const loaderIndex = html.indexOf("assets/firmware-loader.js");
+    assert(securityIndex >= 0 && securityIndex < loaderIndex, `${htmlPath} must load the pinned security helper before the firmware loader`);
     assert(!/<option[^>]+value=["']dev["']/i.test(html), `${htmlPath} still exposes the retired dev catalog`);
   }
 
