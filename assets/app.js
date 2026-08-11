@@ -865,22 +865,6 @@ function updateRetainIndicators() {
   });
 }
 
-function syncBrokerTransportCheckboxesFromUri(index) {
-  return;
-}
-
-function syncBrokerUriFromTransport(index) {
-  return;
-}
-
-function syncAllBrokerTransportControlsFromUri() {
-  return;
-}
-
-function syncAllBrokerUrisFromTransport() {
-  return;
-}
-
 function syncBrokerTopicMode(index) {
   const topicRootInput = getBrokerTopicRootInput(index);
   const toggle = getBrokerDefaultTopicToggle(index);
@@ -923,14 +907,6 @@ function syncAllBrokerDefaultTopicTogglesFromValues() {
   }
 }
 
-function updateModeButtons() {
-  return;
-}
-
-function updateAdvancedTabs() {
-  return;
-}
-
 function updateWorkflowModeUi() {
   document.body.classList.toggle("mode-simple", uiMode === UI_MODES.SIMPLE);
   document.body.classList.toggle("mode-advanced", uiMode === UI_MODES.ADVANCED);
@@ -939,9 +915,7 @@ function updateWorkflowModeUi() {
   if (modeGate) modeGate.hidden = workflowReady;
   if (workflowPanels) workflowPanels.hidden = !workflowReady;
   if (guidedConsole) guidedConsole.hidden = false;
-  updateModeButtons();
   updateIntentButtons();
-  updateAdvancedTabs();
   updateAdditionalBrokerVisibility();
   updateBrokerTopicPreviews();
   const stepper = document.getElementById("step-stepper");
@@ -1812,7 +1786,6 @@ function setActiveStep(stepId) {
   if (stepId === "device-settings") {
     showStepContinue("device-settings", "Settings ready — continue to apply");
   }
-  updateAdvancedTabs();
   updateNavActionButton();
   updateStepper(stepId);
   if (uiMode === UI_MODES.SIMPLE && stepId) {
@@ -1874,15 +1847,6 @@ function radioValuesMatch(actual, expected) {
     normalizeVerifyValue(actual.sf) === normalizeVerifyValue(expected.sf) &&
     normalizeVerifyValue(actual.cr) === normalizeVerifyValue(expected.cr)
   );
-}
-
-function pushUniqueRetryCommand(target, entry) {
-  if (!entry) return;
-  const command = typeof entry === "string" ? entry : entry.command;
-  const exists = target.some((item) => (typeof item === "string" ? item : item.command) === command);
-  if (!exists) {
-    target.push(entry);
-  }
 }
 
 function renderCapturedDeviceInfo(info) {
@@ -3472,11 +3436,7 @@ function buildExpectedVerifyState(plan = null) {
 async function verifyDeviceSettings() {
   if (!lastAppliedPlan) throw new Error("Apply all settings before verifying the device");
   const result = await collectVerificationResult(lastAppliedPlan);
-  if (result.failures.length > 0) {
-    const error = new Error(result.failures.join("; "));
-    error.retryPlan = result.retryPlan;
-    throw error;
-  }
+  if (result.failures.length > 0) throw new Error(result.failures.join("; "));
 }
 
 async function verifyConfiguredDevice() {
@@ -3511,37 +3471,25 @@ async function verifyConfiguredDevice() {
 async function collectVerificationResult(plan) {
   const expected = buildExpectedVerifyState(plan);
   const failures = [];
-  const retryPlan = {
-    radio: [],
-    identity: [],
-    auth: [],
-    wifi: [],
-    mqtt: [],
-    key: [],
-    reconnectOnly: false,
-    requiresReboot: false
-  };
 
   const radioResult = await readSettingValue("radio");
   const actualRadio = parseRadioValue(radioResult.value);
   if (!radioValuesMatch(actualRadio, expected.radio)) {
     failures.push(`radio mismatch (device: ${radioResult.value})`);
-    pushUniqueRetryCommand(retryPlan.radio, plan.radio[0]);
-    retryPlan.requiresReboot = true;
   } else {
     appendLog("Verified radio settings.");
   }
 
   const checks = [
-    { key: "name", expected: expected.name, label: "name", retryEntry: plan.identity.find((entry) => entry.startsWith("set name ")) },
-    { key: "lat", expected: expected.lat, label: "latitude", numeric: true, retryEntry: plan.identity.find((entry) => entry.startsWith("set lat ")) },
-    { key: "lon", expected: expected.lon, label: "longitude", numeric: true, retryEntry: plan.identity.find((entry) => entry.startsWith("set lon ")) },
-    { key: "prv.key", expected: expected.privateKey, label: "private key", sensitive: true, retryEntry: plan.key[0], requiresReboot: true },
-    { key: "guest.password", expected: expected.guestPassword, label: "guest password", sensitive: true, retryEntry: plan.auth.find((entry) => entry.verifyKey === "guest.password") },
-    { key: "mqtt.wifi.ssid", expected: expected.wifiSsid, label: "WiFi SSID", retryEntry: plan.wifi.find((entry) => entry.verifyKey === "mqtt.wifi.ssid") },
-    { key: "mqtt.wifi.pass", expected: expected.wifiPassword, label: "WiFi password", sensitive: true, retryEntry: plan.wifi.find((entry) => entry.verifyKey === "mqtt.wifi.pass") },
-    { key: "mqtt.model", expected: expected.model, label: "MQTT model", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.model") },
-    { key: "mqtt.client.version", expected: expected.clientVersion, label: "MQTT client version", retryEntry: plan.mqtt.find((entry) => entry.verifyKey === "mqtt.client.version") }
+    { key: "name", expected: expected.name, label: "name" },
+    { key: "lat", expected: expected.lat, label: "latitude", numeric: true },
+    { key: "lon", expected: expected.lon, label: "longitude", numeric: true },
+    { key: "prv.key", expected: expected.privateKey, label: "private key", sensitive: true },
+    { key: "guest.password", expected: expected.guestPassword, label: "guest password", sensitive: true },
+    { key: "mqtt.wifi.ssid", expected: expected.wifiSsid, label: "WiFi SSID" },
+    { key: "mqtt.wifi.pass", expected: expected.wifiPassword, label: "WiFi password", sensitive: true },
+    { key: "mqtt.model", expected: expected.model, label: "MQTT model" },
+    { key: "mqtt.client.version", expected: expected.clientVersion, label: "MQTT client version" }
   ];
 
   for (const check of checks) {
@@ -3557,18 +3505,6 @@ async function collectVerificationResult(plan) {
       failures.push(
         `${check.label} mismatch (device: ${check.sensitive ? "********" : actualValue || "blank"})`
       );
-      if (check.key.startsWith("mqtt.")) {
-        pushUniqueRetryCommand(retryPlan[check.key.startsWith("mqtt.wifi.") ? "wifi" : "mqtt"], check.retryEntry);
-      } else if (check.key === "guest.password") {
-        pushUniqueRetryCommand(retryPlan.auth, check.retryEntry);
-      } else if (check.key === "prv.key") {
-        pushUniqueRetryCommand(retryPlan.key, check.retryEntry);
-      } else {
-        pushUniqueRetryCommand(retryPlan.identity, check.retryEntry);
-      }
-      if (check.requiresReboot) {
-        retryPlan.requiresReboot = true;
-      }
     } else {
       appendLog(`Verified ${check.label}.`);
     }
@@ -3591,14 +3527,12 @@ async function collectVerificationResult(plan) {
     }
 
     for (const check of brokerChecks) {
-      const retryEntry = plan.mqtt.find((entry) => entry.verifyKey === check.key);
       const result = await readSettingValue(check.key, 7000);
       const actualValue = normalizeVerifyValue(result.value);
       if (actualValue !== normalizeVerifyValue(check.expected)) {
         failures.push(
           `${check.label} mismatch (device: ${check.sensitive ? "********" : actualValue || "blank"})`
         );
-        pushUniqueRetryCommand(retryPlan.mqtt, retryEntry);
       } else {
         appendLog(`Verified ${check.label}.`);
       }
@@ -3608,60 +3542,11 @@ async function collectVerificationResult(plan) {
   const { connected } = await readMqttStatus();
   if (!connected) {
     failures.push("mqtt.connected=false");
-    retryPlan.reconnectOnly = true;
   } else {
     appendLog("Verified mqtt.connected=true.");
   }
 
-  return { failures, retryPlan };
-}
-
-async function reconnectSerialForRetry() {
-  appendLog("Waiting for the device to reboot before verification.");
-  await delay(3200);
-  await disconnectSerialSession({ silent: true });
-  appendLog("Reconnecting serial for verification.");
-  await connectSerial();
-  await ensureSerialCliReady();
-}
-
-async function applyRetryPlan(retryPlan) {
-  const retryCommands = [
-    ...retryPlan.radio.map(commandText),
-    ...retryPlan.identity.map(commandText),
-    ...retryPlan.wifi.map(commandText),
-    ...retryPlan.mqtt.map(commandText),
-    ...retryPlan.key.map(commandText),
-    ...(retryPlan.reconnectOnly ? ["mqtt reconnect"] : [])
-  ];
-
-  if (retryCommands.length === 0) {
-    appendLog("No retryable settings were identified.");
-    return false;
-  }
-
-  appendLog(`Retrying only unsaved settings: ${retryCommands.map(maskSensitiveCommand).join(", ")}`);
-
-  if (retryPlan.radio.length > 0) {
-    await runCommands(retryPlan.radio);
-  }
-  if (retryPlan.identity.length > 0) {
-    await runCommands(retryPlan.identity);
-  }
-  if (retryPlan.wifi.length > 0) {
-    await runCommands(retryPlan.wifi);
-  }
-  if (retryPlan.key.length > 0) {
-    await runCommands(retryPlan.key);
-  }
-  if (retryPlan.mqtt.length > 0) {
-    await runCommands(retryPlan.mqtt);
-  }
-  if (retryPlan.reconnectOnly) {
-    await runCommandExpectOk("mqtt reconnect", 8000);
-  }
-
-  return true;
+  return { failures };
 }
 
 async function captureCurrentDeviceInfo() {
@@ -3823,19 +3708,18 @@ async function buildFlashArtifacts(board, kind) {
       ...artifact,
       label: artifact.name,
       address: artifact.offset,
-      data: await blobToBinaryString(new Blob([artifact.bytes]))
+      data: bytesToBinaryString(artifact.bytes)
     });
   }
   return { ...verified, artifacts };
 }
 
-async function blobToBinaryString(blob) {
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  let result = "";
-  for (let index = 0; index < bytes.length; index += 1) {
-    result += String.fromCharCode(bytes[index]);
+function bytesToBinaryString(bytes) {
+  const chunks = [];
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    chunks.push(String.fromCharCode(...bytes.subarray(index, index + 0x8000)));
   }
-  return result;
+  return chunks.join("");
 }
 
 async function flashFirmware(kind) {

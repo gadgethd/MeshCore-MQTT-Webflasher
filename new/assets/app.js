@@ -1401,10 +1401,12 @@
     return esptoolPromise;
   }
 
-  async function blobToBinaryString(u8) {
-    let result = "";
-    for (let i = 0; i < u8.length; i++) result += String.fromCharCode(u8[i]);
-    return result;
+  function bytesToBinaryString(u8) {
+    const chunks = [];
+    for (let i = 0; i < u8.length; i += 0x8000) {
+      chunks.push(String.fromCharCode(...u8.subarray(i, i + 0x8000)));
+    }
+    return chunks.join("");
   }
 
   async function buildFlashArtifacts(board, kind) {
@@ -1421,7 +1423,7 @@
         ...artifact,
         label: artifact.name,
         address: artifact.offset,
-        data: await blobToBinaryString(artifact.bytes)
+        data: bytesToBinaryString(artifact.bytes)
       });
     }
     return { ...verified, artifacts };
