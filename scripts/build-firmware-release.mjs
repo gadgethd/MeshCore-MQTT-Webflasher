@@ -54,6 +54,7 @@ async function buildManifest(inventory) {
 
 function catalogFromManifest(manifest) {
   return {
+    schemaVersion: 1,
     generatedAt: manifest.release.generatedAt,
     branch: "main",
     boards: manifest.boards.map((board) => {
@@ -96,11 +97,11 @@ async function main() {
     ...unsigned,
     signature: { algorithm: "Ed25519", keyId, value: signature }
   };
-  const catalog = `window.FIRMWARE_DATA = ${JSON.stringify(catalogFromManifest(manifest), null, 2)};\n`;
+  const catalog = `${JSON.stringify(catalogFromManifest(manifest), null, 2)}\n`;
 
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  await writeFile(path.join(repositoryRoot, "assets", "firmware-data.js"), catalog);
-  await writeFile(path.join(repositoryRoot, "new", "assets", "firmware-data.js"), catalog);
+  await writeFile(path.join(repositoryRoot, "assets", "firmware-data.json"), catalog);
+  await writeFile(path.join(repositoryRoot, "new", "assets", "firmware-data.json"), catalog);
   process.stdout.write(`Signed ${manifest.boards.length} boards and regenerated both catalogs.\n`);
 }
 

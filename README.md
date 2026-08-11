@@ -8,7 +8,7 @@ This repository ships a static browser application that can:
 - capture existing device settings before changes are made
 - apply radio, identity, WiFi, and MQTT settings from the same page
 - verify the resulting runtime state after configuration
-- serve the flasher through Nginx, Docker Compose, and an optional Cloudflare tunnel
+- serve the flasher through Nginx and Docker Compose, with an externally managed Cloudflare tunnel when required
 
 The current signed release contains ESP32-S3 MeshCore repeater targets whose firmware
 binaries and release inventory are committed into this repository under `firmware/`.
@@ -29,16 +29,15 @@ Open `http://127.0.0.1:8080`.
 
 ### Production deployment
 
-1. Copy `.env.example` to `.env`.
-2. Set `CLOUDFLARED_TOKEN`.
-3. Start the stack:
+1. Start the stack:
 
 ```bash
 docker compose up --build -d
 ```
 
-The static site is served by Nginx on port `8080`, and `cloudflared` can publish it
-through the configured tunnel.
+The static site is served by Nginx on `127.0.0.1:8080`. If production uses Cloudflare,
+configure the host's externally managed `cloudflared.service` to publish that loopback
+origin; tunnel credentials are intentionally kept outside this repository.
 
 ## Documentation
 

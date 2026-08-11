@@ -23,15 +23,14 @@ and hosting files all live together.
 | `assets/app.js` | Workflow logic, serial CLI integration, flashing flow, validation |
 | `assets/security.js` | Pinned release key, signature/digest checks, chip validation, and serial redaction |
 | `assets/styles.css` | Application styling |
-| `assets/firmware-data.js` | Stable firmware catalog exposed as `window.FIRMWARE_DATA` |
+| `assets/firmware-data.json` | Stable firmware catalog loaded after schema validation |
 | `assets/vendor/esptool-js-bundle.js` | Browser flashing dependency |
 | `firmware/release-inventory.json` | Authoritative release metadata used to generate catalogs and signed metadata |
 | `firmware/release-manifest.json` | Ed25519-signed artifact sizes, SHA-256 digests, chip IDs, and offsets |
 | `firmware/*/*.bin` | Published firmware binaries |
 | `Dockerfile` | Static Nginx image build |
 | `nginx.conf` | Cache and static file policy |
-| `compose.yml` | Nginx plus optional Cloudflare tunnel deployment |
-| `.env.example` | Required environment variable template for `cloudflared` |
+| `compose.yml` | Loopback-only Nginx container deployment |
 
 ## Supported Workflow
 
