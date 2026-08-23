@@ -525,11 +525,11 @@
                   <div class="settings-grid">
                     <label class="field">
                       <span class="field__label">WiFi SSID</span>
-                      <input type="text" name="wifiSsid" value="UKMesh-Radio" autocomplete="off" autocapitalize="none" spellcheck="false">
+                      <input type="text" name="wifiSsid" autocomplete="off" autocapitalize="none" spellcheck="false">
                     </label>
                     <label class="field">
                       <span class="field__label">WiFi Password</span>
-                      <input type="password" name="wifiPassword" value="password123" autocomplete="new-password" autocapitalize="none" spellcheck="false">
+                      <input type="password" name="wifiPassword" autocomplete="new-password" autocapitalize="none" spellcheck="false">
                     </label>
                   </div>
                 </section>
@@ -594,15 +594,15 @@
                       <div class="settings-grid">
                         <label class="field field--span-2">
                           <span class="field__label">Broker 1 URI</span>
-                          <input type="text" name="mqttUri" value="wss://mqtt.ukmesh.com:443/" form="settings-form">
+                          <input type="text" name="mqttUri" form="settings-form">
                         </label>
                         <label class="field">
                           <span class="field__label">Broker 1 Username</span>
-                          <input type="text" name="mqttUsername" value="observer" form="settings-form">
+                          <input type="text" name="mqttUsername" form="settings-form">
                         </label>
                         <label class="field">
                           <span class="field__label">Broker 1 Password</span>
-                          <input type="password" name="mqttPassword" value="observer-password" form="settings-form">
+                          <input type="password" name="mqttPassword" form="settings-form">
                         </label>
                         <label class="field field--span-2">
                           <span class="field__label">Use MeshCore default topic root</span>
@@ -895,6 +895,9 @@
                 </div>
                 <div class="action-row settings-actions__row settings-actions__row--primary">
                   <button class="button button--primary settings-actions__apply" id="settings-apply-all-button" type="button">Apply All Settings</button>
+                </div>
+                <div class="action-row settings-actions__row">
+                  <button class="button button--secondary settings-actions__apply" id="verify-config-button" type="button" hidden>Verify Applied Settings</button>
                 </div>
                 <div class="action-row settings-actions__row">
                   <button class="button button--secondary settings-actions__apply" id="settings-apply-device-wifi-button" type="button">Apply Device + WiFi</button>

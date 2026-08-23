@@ -130,6 +130,8 @@ let serialCliReady = false;
 let preferredSerialPortInfo = null;
 let scheduledSerialDisconnect = null;
 let activeSerialRequest = null;
+let serialRequestQueue = Promise.resolve();
+let lastAppliedPlan = null;
 let capturedDeviceInfo = null;
 let savedStep4Settings = null;
 let activeMqttBrokerIds = new Set();
@@ -521,12 +523,12 @@ function currentTopicPublicKey({ allowPlaceholder = true } = {}) {
   if (value) {
     return value;
   }
-  return allowPlaceholder ? "<PUBLIC_KEY>" : "";
+  return allowPlaceholder ? "{PUBLIC_KEY}" : "";
 }
 
-function buildDefaultPacketsTopic(iata, publicKey = currentTopicPublicKey()) {
-  const resolvedIata = String(iata || "").trim() || "<IATA>";
-  const resolvedPublicKey = String(publicKey || "").trim() || "<PUBLIC_KEY>";
+function buildDefaultPacketsTopic(iata, publicKey = "{PUBLIC_KEY}") {
+  const resolvedIata = String(iata || "").trim() || "{IATA}";
+  const resolvedPublicKey = String(publicKey || "").trim() || "{PUBLIC_KEY}";
   return `meshcore/${resolvedIata}/${resolvedPublicKey}/packets`;
 }
 
@@ -776,6 +778,9 @@ function clearCurrentBoardSelection() {
   boardSelectionConfirmed = false;
   capturedDeviceInfo = null;
   savedStep4Settings = null;
+  lastAppliedPlan = null;
+  const verifyButton = document.getElementById("verify-config-button");
+  if (verifyButton) verifyButton.hidden = true;
 
   if (boardSelect) boardSelect.value = "";
   if (boardTriggerLabel) boardTriggerLabel.textContent = "Select supported board";
@@ -2551,7 +2556,7 @@ function updateRadioPresetFromInputs() {
   syncRadioCommand();
 }
 
-function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true } = {}) {
+function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true, requireWifi = true } = {}) {
   const formData = new FormData(settingsForm);
   const repeaterName = String(repeaterNameInput?.value || "").trim() || String(capturedDeviceInfo?.name || "").trim();
   const privateKey = String(privateKeyInput?.value || "").trim();
@@ -2561,6 +2566,8 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
   const longitude = String(deviceLonInput?.value || "").trim() || String(capturedDeviceInfo?.lon || "").trim();
   const sharedModel = String(formData.get("model") || "").trim();
   const sharedClientVersion = String(formData.get("clientVersion") || "").trim();
+  const wifiSsid = String(formData.get("wifiSsid") || "").trim();
+  const wifiPassword = String(formData.get("wifiPassword") || "").trim();
   const invalidNameChars = repeaterName.match(/[[\]\\:,?*]/g);
 
   if (repeaterName.length > 31) {
@@ -2580,6 +2587,9 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
   if (adminPassword.length > 15) {
     throw new Error("Admin password must be 15 characters or fewer");
   }
+  if (requireWifi && (!wifiSsid || !wifiPassword)) {
+    throw new Error("WiFi SSID and password are required before applying settings");
+  }
   if (latitude) {
     const parsedLat = Number.parseFloat(latitude);
     if (!Number.isFinite(parsedLat) || parsedLat < -90 || parsedLat > 90) {
@@ -2594,15 +2604,6 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
   }
 
   const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1));
-  const currentPublicKey = currentTopicPublicKey({ allowPlaceholder: false });
-  const capturedPrivateKey = String(capturedDeviceInfo?.privateKey || "").trim();
-  const enabledDefaultTopicBrokers = brokers.filter((broker) => broker.enabled && getBrokerDefaultTopicToggle(broker.index)?.checked);
-  if (enabledDefaultTopicBrokers.length > 0 && !currentPublicKey) {
-    throw new Error("Read Current Device Info first so the flasher can build the full default MQTT topic path");
-  }
-  if (enabledDefaultTopicBrokers.length > 0 && privateKey && privateKey !== capturedPrivateKey) {
-    throw new Error("Apply the private key first, then read the device info again before using the default MQTT topic path");
-  }
   [1, 3, 5].forEach((index) => {
     const broker = brokers[index - 1];
     if (!broker?.enabled || String(broker.retainStatus || "0") !== "1") {
@@ -2623,6 +2624,13 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
     }
     return true;
   });
+  if (requireMqtt) {
+    enabledBrokers.forEach((broker) => {
+      if (!broker.username || !broker.password) {
+        throw new Error(`Broker ${broker.index} username and password are required before applying MQTT settings`);
+      }
+    });
+  }
 
   const identityCommands = [];
   if (repeaterName) {
@@ -2658,18 +2666,18 @@ function buildConfigurationPlan({ validatePrivateKey = true, requireMqtt = true 
     radio: [buildRadioCommand()],
     identity: identityCommands,
     auth: authCommands,
-    wifi: [
+    wifi: requireWifi ? [
       {
-        command: `set mqtt.wifi.ssid ${formData.get("wifiSsid") || ""}`,
+        command: `set mqtt.wifi.ssid ${wifiSsid}`,
         verifyKey: "mqtt.wifi.ssid",
-        expectedValue: String(formData.get("wifiSsid") || "")
+        expectedValue: wifiSsid
       },
       {
-        command: `set mqtt.wifi.pass ${formData.get("wifiPassword") || ""}`,
+        command: `set mqtt.wifi.pass ${wifiPassword}`,
         verifyKey: "mqtt.wifi.pass",
-        expectedValue: String(formData.get("wifiPassword") || "")
+        expectedValue: wifiPassword
       }
-    ],
+    ] : [],
     mqtt: [
       ...(sharedModel ? [{
         command: `set mqtt.model ${sharedModel}`,
@@ -2804,63 +2812,73 @@ function createSerialRequest(commandOrRequest, predicate, timeoutMs) {
   };
 }
 
+function enqueueSerialRequest(operation) {
+  const result = serialRequestQueue.then(operation, operation);
+  serialRequestQueue = result.catch(() => {});
+  return result;
+}
+
 async function runCommandExpectReply(commandOrRequest, predicate = (value) => value.includes("->"), timeoutMs = 6000) {
-  const request = createSerialRequest(commandOrRequest, predicate, timeoutMs);
-  const previousRequest = activeSerialRequest;
-  activeSerialRequest = request;
-  const waiter = waitForLine(request.predicate, request.timeoutMs, request);
-  try {
-    logSerialCommand(request.command);
+  return enqueueSerialRequest(async () => {
+    const request = createSerialRequest(commandOrRequest, predicate, timeoutMs);
+    const previousRequest = activeSerialRequest;
+    activeSerialRequest = request;
+    const waiter = waitForLine(request.predicate, request.timeoutMs, request);
     try {
-      await writeSerialCommand(request.command);
-    } catch (error) {
+      logSerialCommand(request.command);
+      try {
+        await writeSerialCommand(request.command);
+      } catch (error) {
+        waiter.cancel();
+        throw error;
+      }
+      const line = await waiter;
+      appendLog(`[match] ${security.redactSerialText(line, request)}`);
+      await delay(getCommandSettleDelay(request.command));
+      return line;
+    } finally {
       waiter.cancel();
-      throw error;
+      if (activeSerialRequest === request) activeSerialRequest = previousRequest;
     }
-    const line = await waiter;
-    appendLog(`[match] ${security.redactSerialText(line, request)}`);
-    await delay(getCommandSettleDelay(request.command));
-    return line;
-  } finally {
-    waiter.cancel();
-    if (activeSerialRequest === request) activeSerialRequest = previousRequest;
-  }
+  });
 }
 
 async function runCommandExpectOk(command, timeoutMs = 6000) {
-  const request = createSerialRequest({ command, timeoutMs });
-  const previousRequest = activeSerialRequest;
-  activeSerialRequest = request;
-  const deadline = Date.now() + request.timeoutMs;
-  let waiter = waitForLine(request.predicate, request.timeoutMs, request);
-  try {
-    logSerialCommand(command);
+  return enqueueSerialRequest(async () => {
+    const request = createSerialRequest({ command, timeoutMs });
+    const previousRequest = activeSerialRequest;
+    activeSerialRequest = request;
+    const deadline = Date.now() + request.timeoutMs;
+    let waiter = waitForLine(request.predicate, request.timeoutMs, request);
     try {
-      await writeSerialCommand(command);
-    } catch (error) {
+      logSerialCommand(command);
+      try {
+        await writeSerialCommand(command);
+      } catch (error) {
+        waiter.cancel();
+        throw error;
+      }
+      while (Date.now() < deadline) {
+        const line = await waiter;
+        if (/->\s*OK\b/i.test(line)) {
+          appendLog(`[match] ${security.redactSerialText(line, request)}`);
+          await delay(getCommandSettleDelay(command));
+          return line;
+        }
+        if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
+          appendLog(`[match] ${security.redactSerialText(line, request)}`);
+          throw new Error(request.sensitive ? `Device rejected ${request.label || "sensitive setting"}` : line);
+        }
+        appendLog(`[skip] ${security.redactSerialText(line, request)}`);
+        const remaining = Math.max(1, deadline - Date.now());
+        waiter = waitForLine(request.predicate, remaining, request);
+      }
+      throw new Error("Timed out waiting for OK response");
+    } finally {
       waiter.cancel();
-      throw error;
+      if (activeSerialRequest === request) activeSerialRequest = previousRequest;
     }
-    while (Date.now() < deadline) {
-      const line = await waiter;
-      if (/->\s*OK\b/i.test(line)) {
-        appendLog(`[match] ${security.redactSerialText(line, request)}`);
-        await delay(getCommandSettleDelay(command));
-        return line;
-      }
-      if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
-        appendLog(`[match] ${security.redactSerialText(line, request)}`);
-        throw new Error(request.sensitive ? `Device rejected ${request.label || "sensitive setting"}` : line);
-      }
-      appendLog(`[skip] ${security.redactSerialText(line, request)}`);
-      const remaining = Math.max(1, deadline - Date.now());
-      waiter = waitForLine(request.predicate, remaining, request);
-    }
-    throw new Error("Timed out waiting for OK response");
-  } finally {
-    waiter.cancel();
-    if (activeSerialRequest === request) activeSerialRequest = previousRequest;
-  }
+  });
 }
 
 async function resetSerialConsole() {
@@ -2997,7 +3015,7 @@ async function connectSerial() {
 
 function buildCommandPreview() {
   try {
-    const plan = buildConfigurationPlan({ validatePrivateKey: false, requireMqtt: false });
+    const plan = buildConfigurationPlan({ validatePrivateKey: false, requireMqtt: false, requireWifi: false });
     const commands = [...plan.radio, ...plan.identity, ...plan.auth, ...plan.wifi, ...plan.key, ...plan.mqtt, ...plan.reboot];
     commandPreviewPane.textContent = commands.map((entry) => maskSensitiveCommand(commandText(entry))).join("\n");
   } catch (error) {
@@ -3186,10 +3204,40 @@ async function releaseFlashSession(transport, port) {
   await delay(150);
 }
 
+async function runLoaderMainWithTimeout(loader, mode, timeoutMs, message) {
+  let timerId;
+  const operation = Promise.resolve().then(() => loader.main(mode));
+  const timeout = new Promise((_, reject) => {
+    timerId = setTimeout(() => reject(new Error(message || `Timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([operation, timeout]);
+  } catch (error) {
+    const reportedError = error instanceof Error ? error : new Error(String(error));
+    reportedError.pendingOperation = operation;
+    throw reportedError;
+  } finally {
+    clearTimeout(timerId);
+  }
+}
+
+async function cleanupBootloaderAttempt(error, transport) {
+  try {
+    await releaseFlashSession(transport, null);
+  } catch (releaseError) {
+    appendLog(`Flash reconnect warning: ${releaseError.message}`);
+  }
+  if (error?.pendingOperation) {
+    await settleSerialOperation(() => error.pendingOperation, 1200, "Bootloader cleanup warning", true);
+  }
+}
+
 async function readMqttStatus(timeoutMs = 8000) {
-  logSerialCommand("show mqtt");
-  await writeSerialCommand("show mqtt");
-  const line = await waitForLine((value) => value.toLowerCase().includes("mqtt.connected="), timeoutMs);
+  const line = await runCommandExpectReply({
+    command: "show mqtt",
+    predicate: (value) => value.toLowerCase().includes("mqtt.connected="),
+    timeoutMs
+  });
   const connected = parseMqttConnectedLine(line);
 
   if (connected === null) {
@@ -3245,14 +3293,23 @@ async function connectBootloaderWithFallback({
   loader.hr = new HardReset(transport);
 
   try {
-    const chip = await loader.main();
+    const chip = await runLoaderMainWithTimeout(
+      loader,
+      undefined,
+      12000,
+      "Timed out. Enter download mode: hold BOOT, tap RESET, release BOOT."
+    );
     return { chip, loader, transport };
   } catch (error) {
-    if (!isSerialSignalFailure(error)) {
+    const needsManual = isSerialSignalFailure(error) ||
+      /Timed out|Failed to connect|already open|InvalidStateError/i.test(String(error?.message || error));
+    if (!needsManual) {
+      await cleanupBootloaderAttempt(error, transport);
       throw error;
     }
 
     appendLog("Automatic bootloader entry failed — browser cannot toggle serial control lines.");
+    await cleanupBootloaderAttempt(error, transport);
     window.alert(
       "Manual bootloader entry required\n\n" +
       `Please perform these steps on your ${boardLabel}:\n\n` +
@@ -3262,12 +3319,6 @@ async function connectBootloaderWithFallback({
       "Click OK when ready and the flasher will retry connecting."
     );
 
-    try {
-      await releaseFlashSession(transport, null);
-    } catch (releaseError) {
-      appendLog(`Flash reconnect warning: ${releaseError.message}`);
-    }
-
     await delay(2500);
 
     transport = new Transport(port, true);
@@ -3276,12 +3327,71 @@ async function connectBootloaderWithFallback({
       transport
     });
     loader.hr = new HardReset(transport);
-    const chip = await loader.main("no_reset");
-    return { chip, loader, transport };
+    try {
+      const chip = await runLoaderMainWithTimeout(
+        loader,
+        "no_reset",
+        12000,
+        "Still can't connect. Power-cycle the board and try again."
+      );
+      return { chip, loader, transport };
+    } catch (retryError) {
+      await cleanupBootloaderAttempt(retryError, transport);
+      throw retryError;
+    }
   }
 }
 
-function buildExpectedVerifyState() {
+function findPlanExpectedValue(plan, key) {
+  const entries = [
+    ...(plan?.auth || []),
+    ...(plan?.wifi || []),
+    ...(plan?.mqtt || [])
+  ];
+  const entry = entries.find((candidate) => candidate?.verifyKey === key);
+  return entry ? normalizeVerifyValue(entry.expectedValue) : "";
+}
+
+function findPlanCommandValue(commands, prefix) {
+  const command = (commands || []).find((entry) => typeof entry === "string" && entry.startsWith(prefix));
+  return command ? normalizeVerifyValue(command.slice(prefix.length)) : "";
+}
+
+function buildExpectedVerifyState(plan = null) {
+  if (plan) {
+    const radioCommand = typeof plan.radio?.[0] === "string"
+      ? plan.radio[0].replace(/^set radio\s+/i, "")
+      : "";
+    const radio = parseRadioValue(radioCommand);
+    const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => {
+      const index = offset + 1;
+      const enabled = findPlanExpectedValue(plan, `mqtt.${index}.enabled`);
+      return {
+        index,
+        enabled,
+        uri: enabled === "1" ? findPlanExpectedValue(plan, `mqtt.${index}.uri`) : "",
+        username: enabled === "1" ? findPlanExpectedValue(plan, `mqtt.${index}.username`) : "",
+        password: enabled === "1" ? findPlanExpectedValue(plan, `mqtt.${index}.password`) : "",
+        topicRoot: enabled === "1" ? findPlanExpectedValue(plan, `mqtt.${index}.topic.root`) : "",
+        iata: enabled === "1" ? findPlanExpectedValue(plan, `mqtt.${index}.iata`) : "",
+        retainStatus: enabled === "1" ? findPlanExpectedValue(plan, `mqtt.${index}.retain.status`) : ""
+      };
+    });
+    return {
+      radio,
+      name: findPlanCommandValue(plan.identity, "set name "),
+      lat: findPlanCommandValue(plan.identity, "set lat "),
+      lon: findPlanCommandValue(plan.identity, "set lon "),
+      privateKey: findPlanCommandValue(plan.key, "set prv.key "),
+      guestPassword: findPlanExpectedValue(plan, "guest.password"),
+      wifiSsid: findPlanExpectedValue(plan, "mqtt.wifi.ssid"),
+      wifiPassword: findPlanExpectedValue(plan, "mqtt.wifi.pass"),
+      model: findPlanExpectedValue(plan, "mqtt.model"),
+      clientVersion: findPlanExpectedValue(plan, "mqtt.client.version"),
+      brokers
+    };
+  }
+
   const formData = new FormData(settingsForm);
   const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1));
   return {
@@ -3314,7 +3424,8 @@ function buildExpectedVerifyState() {
 }
 
 async function verifyDeviceSettings() {
-  const result = await collectVerificationResult(buildConfigurationPlan({ validatePrivateKey: false }));
+  if (!lastAppliedPlan) throw new Error("Apply all settings before verifying the device");
+  const result = await collectVerificationResult(lastAppliedPlan);
   if (result.failures.length > 0) {
     const error = new Error(result.failures.join("; "));
     error.retryPlan = result.retryPlan;
@@ -3322,8 +3433,37 @@ async function verifyDeviceSettings() {
   }
 }
 
+async function verifyConfiguredDevice() {
+  const verifyButton = document.getElementById("verify-config-button");
+  if (!lastAppliedPlan) {
+    appendLog("Apply all settings before verifying the device.");
+    return;
+  }
+  if (!serialConnected) {
+    await connectSerial();
+    if (!serialConnected) return;
+  }
+  if (verifyButton) verifyButton.disabled = true;
+  setPanelState(verifyState, "Verifying", "panel__status--busy");
+  try {
+    await ensureSerialCliReady();
+    await verifyDeviceSettings();
+    setPanelState(verifyState, "Verified", "panel__status--success");
+    setText(summaryConfig, "Applied and verified");
+    setText(summaryMqtt, "mqtt.connected=true");
+    appendLog("All applied settings and MQTT runtime state verified.");
+    showToast("Settings verified ✓", "success");
+  } catch (error) {
+    setPanelState(verifyState, "Verification failed", "panel__status--error");
+    appendLog(`Verification failed: ${error.message}`);
+    showToast("Verification failed — check the log", "error");
+  } finally {
+    if (verifyButton) verifyButton.disabled = false;
+  }
+}
+
 async function collectVerificationResult(plan) {
-  const expected = buildExpectedVerifyState();
+  const expected = buildExpectedVerifyState(plan);
   const failures = [];
   const retryPlan = {
     radio: [],
@@ -3727,6 +3867,7 @@ async function flashFirmware(kind) {
         data: artifact.data,
         address: artifact.address
       })),
+      calculateMD5Hash: (data) => security.md5Hex(data),
       reportProgress(_fileIndex, written, total) {
         const lowerBound = kind === "full" ? 24 : 24;
         const percent = total > 0 ? Math.max(lowerBound, Math.min(98, Math.round((written / total) * 100))) : lowerBound;
@@ -4284,6 +4425,11 @@ async function applySettings(mode = "all") {
 
   setPanelState(settingsState, "Writing", "panel__status--busy");
   markApplyStages(mode);
+  if (mode === "all") {
+    lastAppliedPlan = null;
+    const verifyButton = document.getElementById("verify-config-button");
+    if (verifyButton) verifyButton.hidden = true;
+  }
   resetMqttRuntimeState(mode === "mqtt" ? "Applying" : "Rebooting", mode === "mqtt" ? "Awaiting runtime state" : "Reconnect serial to verify");
 
   try {
@@ -4295,7 +4441,10 @@ async function applySettings(mode = "all") {
       );
     }
 
-    const plan = buildConfigurationPlan({ requireMqtt: mode !== "device-wifi" });
+    const plan = buildConfigurationPlan({
+      requireMqtt: mode !== "device-wifi",
+      requireWifi: mode !== "mqtt"
+    });
     appendLog(mode === "all" ? "Applying all settings immediately." : mode === "device-wifi" ? "Applying device, radio, and WiFi settings." : "Applying MQTT settings only.");
     // Don't auto-switch tabs - let user navigate manually
 
@@ -4345,6 +4494,9 @@ async function applySettings(mode = "all") {
       resetMqttRuntimeState("Rebooting", "Reconnect serial to verify");
       setPanelState(verifyState, "Reconnect serial after reboot", "panel__status--idle");
       if (mode === "all") {
+        lastAppliedPlan = plan;
+        const verifyButton = document.getElementById("verify-config-button");
+        if (verifyButton) verifyButton.hidden = false;
         configApplied = true;
         const reconnectBannerConfig = document.getElementById("reconnect-banner-config");
         if (reconnectBannerConfig) reconnectBannerConfig.hidden = false;
@@ -4447,6 +4599,7 @@ document.getElementById("reconnect-flash-button")?.addEventListener("click", () 
 document.getElementById("reconnect-config-button")?.addEventListener("click", () => {
   navSerialButton?.click();
 });
+document.getElementById("verify-config-button")?.addEventListener("click", verifyConfiguredDevice);
 
 // Eye toggle buttons for password reveal
 document.querySelectorAll(".btn-eye").forEach((btn) => {
