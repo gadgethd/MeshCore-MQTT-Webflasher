@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "release": {
     "firmwareName": "meshcore-mqtt",
-    "firmwareVersion": "v1.16.0-rev3",
-    "generatedAt": "2026-08-07T10:43:03Z",
+    "firmwareVersion": "v1.17.1",
+    "generatedAt": "2026-09-15T14:55:28Z",
     "branch": "main"
   },
   "boards": [
@@ -11,19 +11,19 @@
       "id": "Heltec_v3_repeater",
       "label": "Heltec v3 Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Verified on hardware",
-      "notes": "Native USB-serial-JTAG — to enter flash mode: hold BOOT, tap RESET, release BOOT.",
+      "notes": "Native USB-serial-JTAG \u2014 to enter flash mode: hold BOOT, tap RESET, release BOOT.",
       "baseEnv": "Heltec_v3_repeater",
       "buildEnv": "Heltec_v3_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:29:19Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-full-2af6.bin",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.17.1-Heltec_v3_repeater-full-6084.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -31,25 +31,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-bootloader-1776.bin",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.17.1-Heltec_v3_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-partitions-1d9c.bin",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.17.1-Heltec_v3_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.17.1-Heltec_v3_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_v3_repeater-update-53d4.bin",
+            "path": "/firmware/Heltec_v3_repeater/meshcore-mqtt-v1.17.1-Heltec_v3_repeater-update-8e03.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -60,18 +60,18 @@
       "id": "LilyGo_T3S3_sx1262_repeater",
       "label": "LilyGo T3S3 SX1262",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "LilyGo_T3S3_sx1262_repeater",
       "buildEnv": "LilyGo_T3S3_sx1262_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:30:00Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-full-18b4.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1262_repeater-full-700b.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -79,25 +79,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-bootloader-e01a.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1262_repeater-bootloader-e01a.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-partitions-148b.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1262_repeater-partitions-148b.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1262_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1262_repeater-update-4e3d.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1262_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1262_repeater-update-a84e.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -108,18 +108,18 @@
       "id": "RAK_3112_repeater",
       "label": "RAK 3112",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "RAK_3112_repeater",
       "buildEnv": "RAK_3112_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:31:40Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-full-799d.bin",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.17.1-RAK_3112_repeater-full-169c.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -127,25 +127,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-bootloader-1776.bin",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.17.1-RAK_3112_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-partitions-1d9c.bin",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.17.1-RAK_3112_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.17.1-RAK_3112_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.16.0-rev3-RAK_3112_repeater-update-738b.bin",
+            "path": "/firmware/RAK_3112_repeater/meshcore-mqtt-v1.17.1-RAK_3112_repeater-update-b5f1.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -156,18 +156,18 @@
       "id": "Xiao_S3_WIO_repeater",
       "label": "Xiao S3 WIO",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "Xiao_S3_WIO_repeater",
       "buildEnv": "Xiao_S3_WIO_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:33:25Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-full-21e9.bin",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.17.1-Xiao_S3_WIO_repeater-full-5182.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -175,25 +175,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-bootloader-1776.bin",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.17.1-Xiao_S3_WIO_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-partitions-1d9c.bin",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.17.1-Xiao_S3_WIO_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.17.1-Xiao_S3_WIO_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.16.0-rev3-Xiao_S3_WIO_repeater-update-375a.bin",
+            "path": "/firmware/Xiao_S3_WIO_repeater/meshcore-mqtt-v1.17.1-Xiao_S3_WIO_repeater-update-c8c2.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -204,18 +204,18 @@
       "id": "Heltec_T190_repeater_",
       "label": "Heltec T190 Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "Heltec_T190_repeater_",
       "buildEnv": "Heltec_T190_repeater__mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:25:28Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-full-86f9.bin",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.17.1-Heltec_T190_repeater_-full-1ec4.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -223,25 +223,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-bootloader-2a71.bin",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.17.1-Heltec_T190_repeater_-bootloader-2a71.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-partitions-bd0f.bin",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.17.1-Heltec_T190_repeater_-partitions-bd0f.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-boot_app0-f94c.bin",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.17.1-Heltec_T190_repeater_-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.16.0-rev3-Heltec_T190_repeater_-update-119a.bin",
+            "path": "/firmware/Heltec_T190_repeater_/meshcore-mqtt-v1.17.1-Heltec_T190_repeater_-update-d6cb.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -252,18 +252,18 @@
       "id": "heltec_tracker_v2_repeater",
       "label": "Heltec Tracker V2 Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "heltec_tracker_v2_repeater",
       "buildEnv": "heltec_tracker_v2_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:34:27Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-full-2325.bin",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.17.1-heltec_tracker_v2_repeater-full-39ee.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -271,25 +271,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-bootloader-1776.bin",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.17.1-heltec_tracker_v2_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-partitions-1d9c.bin",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.17.1-heltec_tracker_v2_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.17.1-heltec_tracker_v2_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_tracker_v2_repeater-update-a51f.bin",
+            "path": "/firmware/heltec_tracker_v2_repeater/meshcore-mqtt-v1.17.1-heltec_tracker_v2_repeater-update-1b71.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -300,18 +300,18 @@
       "id": "heltec_v4_repeater",
       "label": "Heltec V4 Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Verified on hardware",
       "baseEnv": "heltec_v4_repeater",
       "buildEnv": "heltec_v4_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:35:29Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-full-8fdd.bin",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.17.1-heltec_v4_repeater-full-72c4.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -319,25 +319,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-bootloader-2a71.bin",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.17.1-heltec_v4_repeater-bootloader-2a71.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-partitions-bd0f.bin",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.17.1-heltec_v4_repeater-partitions-bd0f.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.17.1-heltec_v4_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_repeater-update-eb62.bin",
+            "path": "/firmware/heltec_v4_repeater/meshcore-mqtt-v1.17.1-heltec_v4_repeater-update-02f4.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -348,18 +348,18 @@
       "id": "heltec_v4_tft_repeater",
       "label": "Heltec V4 TFT Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "heltec_v4_tft_repeater",
       "buildEnv": "heltec_v4_tft_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:36:33Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-full-ea34.bin",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.17.1-heltec_v4_tft_repeater-full-3d30.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -367,25 +367,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-bootloader-2a71.bin",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.17.1-heltec_v4_tft_repeater-bootloader-2a71.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-partitions-bd0f.bin",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.17.1-heltec_v4_tft_repeater-partitions-bd0f.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.17.1-heltec_v4_tft_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.16.0-rev3-heltec_v4_tft_repeater-update-b55d.bin",
+            "path": "/firmware/heltec_v4_tft_repeater/meshcore-mqtt-v1.17.1-heltec_v4_tft_repeater-update-9868.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -396,18 +396,18 @@
       "id": "Heltec_Wireless_Paper_repeater",
       "label": "Heltec Wireless Paper Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Verified on hardware",
       "baseEnv": "Heltec_Wireless_Paper_repeater",
       "buildEnv": "Heltec_Wireless_Paper_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:27:47Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-full-c75a.bin",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Paper_repeater-full-7b22.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -415,25 +415,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-bootloader-1776.bin",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Paper_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-partitions-1d9c.bin",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Paper_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Paper_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Paper_repeater-update-d066.bin",
+            "path": "/firmware/Heltec_Wireless_Paper_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Paper_repeater-update-bc23.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -444,18 +444,18 @@
       "id": "Heltec_Wireless_Tracker_repeater",
       "label": "Heltec Wireless Tracker Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "Heltec_Wireless_Tracker_repeater",
       "buildEnv": "Heltec_Wireless_Tracker_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:28:33Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-full-6f99.bin",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Tracker_repeater-full-61a7.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -463,25 +463,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-bootloader-1776.bin",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Tracker_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-partitions-1d9c.bin",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Tracker_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Tracker_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_Wireless_Tracker_repeater-update-53b3.bin",
+            "path": "/firmware/Heltec_Wireless_Tracker_repeater/meshcore-mqtt-v1.17.1-Heltec_Wireless_Tracker_repeater-update-546f.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -492,18 +492,18 @@
       "id": "Heltec_WSL3_repeater",
       "label": "Heltec WSL3 Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "Heltec_WSL3_repeater",
       "buildEnv": "Heltec_WSL3_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:26:59Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-full-64f8.bin",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.17.1-Heltec_WSL3_repeater-full-999e.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -511,25 +511,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-bootloader-1776.bin",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.17.1-Heltec_WSL3_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-partitions-1d9c.bin",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.17.1-Heltec_WSL3_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.17.1-Heltec_WSL3_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.16.0-rev3-Heltec_WSL3_repeater-update-c265.bin",
+            "path": "/firmware/Heltec_WSL3_repeater/meshcore-mqtt-v1.17.1-Heltec_WSL3_repeater-update-ee7c.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -540,18 +540,18 @@
       "id": "LilyGo_T3S3_sx1276_repeater",
       "label": "LilyGo T3S3 SX1276",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "LilyGo_T3S3_sx1276_repeater",
       "buildEnv": "LilyGo_T3S3_sx1276_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:30:41Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-full-f288.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1276_repeater-full-1830.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -559,25 +559,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-bootloader-e01a.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1276_repeater-bootloader-e01a.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-partitions-148b.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1276_repeater-partitions-148b.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1276_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.16.0-rev3-LilyGo_T3S3_sx1276_repeater-update-b2cb.bin",
+            "path": "/firmware/LilyGo_T3S3_sx1276_repeater/meshcore-mqtt-v1.17.1-LilyGo_T3S3_sx1276_repeater-update-7ecc.bin",
             "offset": 65536,
             "imageHeader": true
           }
@@ -588,18 +588,18 @@
       "id": "T_Beam_S3_Supreme_SX1262_repeater",
       "label": "T-Beam S3 Supreme SX1262 Repeater",
       "firmwareName": "meshcore-mqtt",
-      "firmwareVersion": "v1.16.0-rev3",
+      "firmwareVersion": "v1.17.1",
       "chipId": 9,
       "chipName": "ESP32-S3",
       "hardwareStatus": "Compile validated",
       "baseEnv": "T_Beam_S3_Supreme_SX1262_repeater",
       "buildEnv": "T_Beam_S3_Supreme_SX1262_repeater_mqtt_dynamic",
-      "builtAtUtc": "2026-08-07T10:32:27Z",
+      "builtAtUtc": "2026-09-15T14:55:28Z",
       "modes": {
         "full": [
           {
             "name": "merged",
-            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-full-60cd.bin",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.17.1-T_Beam_S3_Supreme_SX1262_repeater-full-396c.bin",
             "offset": 0,
             "imageHeader": true
           }
@@ -607,25 +607,25 @@
         "update": [
           {
             "name": "bootloader",
-            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-bootloader-1776.bin",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.17.1-T_Beam_S3_Supreme_SX1262_repeater-bootloader-1776.bin",
             "offset": 0,
             "imageHeader": true
           },
           {
             "name": "partitions",
-            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-partitions-1d9c.bin",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.17.1-T_Beam_S3_Supreme_SX1262_repeater-partitions-1d9c.bin",
             "offset": 32768,
             "imageHeader": false
           },
           {
             "name": "boot_app0",
-            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-boot_app0-f94c.bin",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.17.1-T_Beam_S3_Supreme_SX1262_repeater-boot_app0-f94c.bin",
             "offset": 57344,
             "imageHeader": false
           },
           {
             "name": "firmware",
-            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.16.0-rev3-T_Beam_S3_Supreme_SX1262_repeater-update-7741.bin",
+            "path": "/firmware/T_Beam_S3_Supreme_SX1262_repeater/meshcore-mqtt-v1.17.1-T_Beam_S3_Supreme_SX1262_repeater-update-49f7.bin",
             "offset": 65536,
             "imageHeader": true
           }
