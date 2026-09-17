@@ -592,6 +592,10 @@ function shouldAutoStatusBroker(formData, index, mode = uiMode) {
 function buildAutoStatusBroker(formData, index, mode = uiMode) {
   const mainBroker = readRawBrokerSettings(formData, index - 1, { respectMode: mode !== UI_MODES.ADVANCED });
   const statusTopicRoot = deriveStatusTopic(mainBroker.topicRoot);
+  // With the firmware family split (>= v1.17.1-rev2), the status entry is the
+  // status publisher: it carries the retained-status setting (and its LWT) so
+  // retained status keeps working for paired configurations. The primary's
+  // retain flag is inert once it is paired (no status publishes, no LWT).
   return normalizeBrokerRecord(index, {
     enabled: Boolean(mainBroker.enabled && statusTopicRoot),
     uri: mainBroker.uri,
@@ -599,7 +603,7 @@ function buildAutoStatusBroker(formData, index, mode = uiMode) {
     password: mainBroker.password,
     topicRoot: statusTopicRoot,
     iata: mainBroker.iata,
-    retainStatus: "0"
+    retainStatus: mainBroker.retainStatus || "0"
   });
 }
 
