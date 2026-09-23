@@ -1,4 +1,4 @@
-window.FIRMWARE_DATA = {
+{
   "generatedAt": "2026-09-17T01:18:40Z",
   "branch": "main",
   "boards": [
@@ -185,5 +185,6 @@ window.FIRMWARE_DATA = {
         "update": "meshcore-mqtt-v1.17.1-rev2-T_Beam_S3_Supreme_SX1262_repeater-update-c337.bin"
       }
     }
-  ]
-};
+  ],
+  "schemaVersion": 1
+}

@@ -28,7 +28,8 @@ Nginx configuration, and container definitions used to host the flasher.
 - No frontend build step is required. The application is served directly from committed
   HTML, CSS, JavaScript, and firmware assets.
 - Both UIs use identical stable catalogs generated from one signed release inventory.
-- Device state and partially completed configuration are stored in browser
-  `localStorage`, scoped by board ID.
+- Device secrets and partially completed configuration stay in session memory; legacy
+  per-board `localStorage` records are removed during migration. Explicit encrypted
+  backups expire after seven days.
 - The browser must support Web Serial and must run in a secure context such as HTTPS
   or `localhost`.

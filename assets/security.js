@@ -9,6 +9,10 @@
   const SIGNING_KEY_ID = "meshcore-mqtt-webflasher-2026-08";
   const SIGNING_PUBLIC_KEY_BASE64 = "ZeZvaCPRslfhfdYo1JKmLBMX1YTR79T8qSH1vAsDwXI=";
   const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+  const DEVICE_BACKUP_SCHEMA = "meshcore-device-backup";
+  const DEVICE_BACKUP_VERSION = 1;
+  const DEVICE_BACKUP_ITERATIONS = 310000;
+  const DEVICE_BACKUP_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const CHIP_IDS = Object.freeze({
     ESP32: 0x0000,
     "ESP32-S2": 0x0002,
@@ -34,6 +38,98 @@
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   }
 
+  function bytesToBase64(bytes) {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    }
+    return btoa(binary);
+  }
+
+  function deviceBackupAad(createdAt, expiresAt) {
+    return new TextEncoder().encode(`${DEVICE_BACKUP_SCHEMA}\n${DEVICE_BACKUP_VERSION}\n${createdAt}\n${expiresAt}`);
+  }
+
+  async function deriveDeviceBackupKey(passphrase, salt) {
+    if (!root.crypto?.subtle) throw new Error("Web Crypto is required for encrypted backups");
+    const material = await root.crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(passphrase),
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+    return root.crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations: DEVICE_BACKUP_ITERATIONS, hash: "SHA-256" },
+      material,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  async function encryptDeviceBackup(plaintext, passphrase, { now = Date.now() } = {}) {
+    if (typeof plaintext !== "string") throw new Error("Backup content must be text");
+    if (typeof passphrase !== "string" || passphrase.length < 12) {
+      throw new Error("Backup passphrase must be at least 12 characters");
+    }
+    if (!root.crypto?.getRandomValues || !root.crypto?.subtle) throw new Error("Web Crypto is required for encrypted backups");
+
+    const createdAt = new Date(now).toISOString();
+    const expiresAt = new Date(now + DEVICE_BACKUP_TTL_MS).toISOString();
+    const salt = root.crypto.getRandomValues(new Uint8Array(16));
+    const iv = root.crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveDeviceBackupKey(passphrase, salt);
+    const ciphertext = await root.crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, additionalData: deviceBackupAad(createdAt, expiresAt) },
+      key,
+      new TextEncoder().encode(plaintext)
+    );
+
+    return {
+      schema: DEVICE_BACKUP_SCHEMA,
+      version: DEVICE_BACKUP_VERSION,
+      kdf: "PBKDF2-SHA-256",
+      iterations: DEVICE_BACKUP_ITERATIONS,
+      cipher: "AES-256-GCM",
+      createdAt,
+      expiresAt,
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+      ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+    };
+  }
+
+  async function decryptDeviceBackup(envelope, passphrase, { now = Date.now() } = {}) {
+    if (!envelope || typeof envelope !== "object" || envelope.schema !== DEVICE_BACKUP_SCHEMA || envelope.version !== DEVICE_BACKUP_VERSION) {
+      throw new Error("Unsupported encrypted backup format");
+    }
+    if (envelope.kdf !== "PBKDF2-SHA-256" || envelope.iterations !== DEVICE_BACKUP_ITERATIONS || envelope.cipher !== "AES-256-GCM") {
+      throw new Error("Unsupported encrypted backup settings");
+    }
+    if (typeof passphrase !== "string" || passphrase.length < 12) throw new Error("Backup passphrase must be at least 12 characters");
+    const expiry = Date.parse(envelope.expiresAt);
+    const created = Date.parse(envelope.createdAt);
+    if (!Number.isFinite(expiry) || !Number.isFinite(created) || expiry <= created) throw new Error("Encrypted backup expiry metadata is invalid");
+    if (now > expiry) throw new Error("This backup has expired; create a new encrypted backup from the device");
+
+    try {
+      const salt = base64ToBytes(envelope.salt);
+      const iv = base64ToBytes(envelope.iv);
+      const ciphertext = base64ToBytes(envelope.ciphertext);
+      if (salt.length !== 16 || iv.length !== 12 || ciphertext.length < 16) throw new Error("Encrypted backup data is invalid");
+      const key = await deriveDeviceBackupKey(passphrase, salt);
+      const plaintext = await root.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv, additionalData: deviceBackupAad(envelope.createdAt, envelope.expiresAt) },
+        key,
+        ciphertext
+      );
+      return new TextDecoder().decode(plaintext);
+    } catch (_error) {
+      throw new Error("Backup could not be decrypted; check the passphrase and file integrity");
+    }
+  }
+
   function bytesToHex(bytes) {
     return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
   }
@@ -42,6 +138,90 @@
     if (!root.crypto?.subtle) throw new Error("Web Crypto is required to verify firmware");
     const digest = await root.crypto.subtle.digest("SHA-256", bytes);
     return bytesToHex(new Uint8Array(digest));
+  }
+
+  function md5Hex(value) {
+    const input = String(value == null ? "" : value);
+    const bytes = new Uint8Array(input.length);
+    for (let index = 0; index < input.length; index += 1) {
+      bytes[index] = input.charCodeAt(index) & 0xff;
+    }
+
+    const bitLength = bytes.length * 8;
+    const paddedLength = ((bytes.length + 9 + 63) >> 6) << 6;
+    const padded = new Uint8Array(paddedLength);
+    padded.set(bytes);
+    padded[bytes.length] = 0x80;
+    for (let index = 0; index < 8; index += 1) {
+      padded[paddedLength - 8 + index] = Math.floor(bitLength / (2 ** (8 * index))) & 0xff;
+    }
+
+    const shifts = [
+      7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+      5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+      4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+      6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+    ];
+    const constants = Array.from({ length: 64 }, (_, index) =>
+      Math.floor(Math.abs(Math.sin(index + 1)) * 0x100000000) >>> 0
+    );
+    const leftRotate = (valueToRotate, amount) =>
+      (valueToRotate << amount) | (valueToRotate >>> (32 - amount));
+    let a0 = 0x67452301;
+    let b0 = 0xefcdab89;
+    let c0 = 0x98badcfe;
+    let d0 = 0x10325476;
+
+    for (let offset = 0; offset < padded.length; offset += 64) {
+      const words = new Uint32Array(16);
+      for (let index = 0; index < 16; index += 1) {
+        const base = offset + index * 4;
+        words[index] = padded[base] |
+          (padded[base + 1] << 8) |
+          (padded[base + 2] << 16) |
+          (padded[base + 3] << 24);
+      }
+
+      let a = a0;
+      let b = b0;
+      let c = c0;
+      let d = d0;
+      for (let index = 0; index < 64; index += 1) {
+        let functionResult;
+        let wordIndex;
+        if (index < 16) {
+          functionResult = (b & c) | (~b & d);
+          wordIndex = index;
+        } else if (index < 32) {
+          functionResult = (d & b) | (~d & c);
+          wordIndex = (5 * index + 1) % 16;
+        } else if (index < 48) {
+          functionResult = b ^ c ^ d;
+          wordIndex = (3 * index + 5) % 16;
+        } else {
+          functionResult = c ^ (b | ~d);
+          wordIndex = (7 * index) % 16;
+        }
+        const next = d;
+        const sum = (a + functionResult + constants[index] + words[wordIndex]) >>> 0;
+        d = c;
+        c = b;
+        b = (b + leftRotate(sum, shifts[index])) >>> 0;
+        a = next;
+      }
+      a0 = (a0 + a) >>> 0;
+      b0 = (b0 + b) >>> 0;
+      c0 = (c0 + c) >>> 0;
+      d0 = (d0 + d) >>> 0;
+    }
+
+    return [a0, b0, c0, d0].map((word) => {
+      let hex = "";
+      for (let index = 0; index < 4; index += 1) {
+        hex += ((word >>> (8 * index)) & 0xff).toString(16).padStart(2, "0");
+      }
+      return hex;
+    }).join("");
   }
 
   function unsignedManifest(manifest) {
@@ -249,6 +429,10 @@
     isSensitiveSettingKey,
     loadVerifiedFirmware,
     maskSensitiveCommand,
+    md5Hex,
+    encryptDeviceBackup,
+    decryptDeviceBackup,
+    deviceBackupTtlMs: DEVICE_BACKUP_TTL_MS,
     normalizeChipName,
     parseEspImageChipId,
     redactSerialText,

@@ -23,21 +23,20 @@ and hosting files all live together.
 | `assets/app.js` | Workflow logic, serial CLI integration, flashing flow, validation |
 | `assets/security.js` | Pinned release key, signature/digest checks, chip validation, and serial redaction |
 | `assets/styles.css` | Application styling |
-| `assets/firmware-data.js` | Stable firmware catalog exposed as `window.FIRMWARE_DATA` |
+| `assets/firmware-data.json` | Stable firmware catalog loaded after schema validation |
 | `assets/vendor/esptool-js-bundle.js` | Browser flashing dependency |
 | `firmware/release-inventory.json` | Authoritative release metadata used to generate catalogs and signed metadata |
 | `firmware/release-manifest.json` | Ed25519-signed artifact sizes, SHA-256 digests, chip IDs, and offsets |
 | `firmware/*/*.bin` | Published firmware binaries |
 | `Dockerfile` | Static Nginx image build |
 | `nginx.conf` | Cache and static file policy |
-| `compose.yml` | Nginx plus optional Cloudflare tunnel deployment |
-| `.env.example` | Required environment variable template for `cloudflared` |
+| `compose.yml` | Loopback-only Nginx container deployment |
 
 ## Supported Workflow
 
 The application is organized into five operator steps:
 
-1. Read current device info and optionally export a plain-text backup.
+1. Read current device info and optionally export an encrypted backup.
 2. Choose a supported board from the published firmware catalog.
 3. Select radio settings and flash either a full image or an update image.
 4. Configure device identity, location, WiFi, and MQTT settings.
@@ -87,7 +86,6 @@ because no matching development artifacts were published.
 - Before opening Web Serial, the browser verifies the pinned Ed25519 signature and every
   selected segment's same-origin URL, exact size, SHA-256, chip ID, and offset. It then
   requires the ESP image headers, signed chip metadata, and detected bootloader chip to agree.
-- Device backups and saved form state are stored only in the browser. There is no
-  backend storage in this repository.
-- Sensitive CLI replies are redacted by command context before logs or clipboard output, but backup
-  exports contain secrets in plain text by design.
+- Captured device values and form state stay in memory for the current session. Explicit
+  backups are encrypted with a passphrase and expire after seven days.
+- Sensitive CLI replies are redacted by command context before logs or clipboard output.

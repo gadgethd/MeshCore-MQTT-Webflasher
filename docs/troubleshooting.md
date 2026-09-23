@@ -97,10 +97,10 @@ Actions:
 Cause:
 
 - the board was not read before export
-- values were not saved in the browser for the selected board
+- no device values are present in the current session
 
 Actions:
 
 - select the correct board first
 - run `Read Current Device Info`
-- check the "Stored in This Browser" section before exporting again
+- check the "Captured This Session" section before exporting again

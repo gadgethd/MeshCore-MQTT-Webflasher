@@ -34,16 +34,20 @@ The app will:
 - wait for the MeshCore CLI to become available
 - read identity, location, keys, WiFi, model, client version, and MQTT settings
 - fall back to legacy single-broker MQTT keys if the new broker layout is blank
-- store the captured values in browser storage for the selected board
+- keep the captured values in memory for this session
 - prefill later configuration fields from the captured data
 
-After a capture, `Download Backup (.txt)` exports:
+After a capture, `Download Encrypted Backup` exports:
 
-- captured values currently stored in the browser
-- current step-4 form values saved in the browser
+- captured values in session memory
+- current step-4 form values in session memory
 - all broker slot values
 
-The export is a plain-text snapshot, not an encrypted backup.
+Choose and confirm a passphrase of at least 12 characters. The file uses AES-256-GCM,
+expires seven days after creation, and does not store the passphrase. Keep the passphrase
+separate from the file. Importing an older plain-text backup requires confirmation.
+Device values are cleared after successful verification or when you choose Clear Device
+Data; `/new/` also clears them on Done — Start Over.
 
 ### 3. Choose The Board
 
@@ -55,7 +59,7 @@ The board selection controls:
 - manifest path
 - chip family label
 - the stable signed release entry used for the board
-- which browser-stored backup and saved settings are loaded
+- which uploaded backup is applied to the session
 
 ### 4. Set Radio And Flash Firmware
 

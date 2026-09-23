@@ -68,12 +68,8 @@
 
   if (!security) throw new Error("Firmware security helper failed to load");
 
-  // Default broker 1 credentials match the original flasher's prefill.
-  const BROKER1_DEFAULTS = {
-    uri: "wss://mqtt.ukmesh.com:443/",
-    username: "observer",
-    password: "observer-password"
-  };
+  // Deployment-specific WiFi and broker credentials must be entered explicitly.
+  const BROKER1_DEFAULTS = { uri: "", username: "", password: "" };
 
   /* ── State ─────────────────────────────────── */
   let firmwareData = window.FIRMWARE_DATA || { boards: [] };
@@ -91,11 +87,29 @@
   let preferredSerialPortInfo = null;
   let scheduledSerialDisconnect = null;
   let activeSerialRequest = null;
+  let serialRequestQueue = Promise.resolve();
 
   let captured = null;
   let flashComplete = false;
   let flashingNow = false;
   let applyingNow = false;
+  let lastAppliedPlan = null;
+
+  function clearLegacyDeviceStorage() {
+    try {
+      const prefixes = ["meshcore-mqtt-device-info:", "meshcore-mqtt-step4-settings:"];
+      const keysToRemove = [];
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (key && prefixes.some((prefix) => key.startsWith(prefix))) keysToRemove.push(key);
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+    } catch (_error) {
+      // Storage may be disabled; device data still stays in memory only.
+    }
+  }
+
+  clearLegacyDeviceStorage();
   let esptoolPromise = null;
   let logLines = [];
 
@@ -334,6 +348,7 @@
     ]);
     if (result.status === "error" && !silent) log(`${warningLabel}: ${result.error.message}`);
     if (result.status === "timeout" && !silent) log(`${warningLabel}: timed out`);
+    return result.status === "ok";
   }
 
   function disconnectSerialSession({ silent = false } = {}) {
@@ -440,63 +455,73 @@
     };
   }
 
+  function enqueueSerialRequest(operation) {
+    const result = serialRequestQueue.then(operation, operation);
+    serialRequestQueue = result.catch(() => {});
+    return result;
+  }
+
   async function runCommandExpectReply(commandOrRequest, predicate = (value) => value.includes("->"), timeoutMs = 6000) {
-    const request = createSerialRequest(commandOrRequest, predicate, timeoutMs);
-    const previousRequest = activeSerialRequest;
-    activeSerialRequest = request;
-    const waiter = waitForLine(request.predicate, request.timeoutMs, request);
-    try {
-      logSerialCommand(request.command);
+    return enqueueSerialRequest(async () => {
+      const request = createSerialRequest(commandOrRequest, predicate, timeoutMs);
+      const previousRequest = activeSerialRequest;
+      activeSerialRequest = request;
+      const waiter = waitForLine(request.predicate, request.timeoutMs, request);
       try {
-        await writeSerialCommand(request.command);
-      } catch (error) {
+        logSerialCommand(request.command);
+        try {
+          await writeSerialCommand(request.command);
+        } catch (error) {
+          waiter.cancel();
+          throw error;
+        }
+        const line = await waiter;
+        log(`[match] ${security.redactSerialText(line, request)}`);
+        await delay(getCommandSettleDelay(request.command));
+        return line;
+      } finally {
         waiter.cancel();
-        throw error;
+        if (activeSerialRequest === request) activeSerialRequest = previousRequest;
       }
-      const line = await waiter;
-      log(`[match] ${security.redactSerialText(line, request)}`);
-      await delay(getCommandSettleDelay(request.command));
-      return line;
-    } finally {
-      waiter.cancel();
-      if (activeSerialRequest === request) activeSerialRequest = previousRequest;
-    }
+    });
   }
 
   async function runCommandExpectOk(command, timeoutMs = 6000) {
-    const request = createSerialRequest({ command, timeoutMs });
-    const previousRequest = activeSerialRequest;
-    activeSerialRequest = request;
-    const deadline = Date.now() + request.timeoutMs;
-    let waiter = waitForLine(request.predicate, request.timeoutMs, request);
-    try {
-      logSerialCommand(command);
+    return enqueueSerialRequest(async () => {
+      const request = createSerialRequest({ command, timeoutMs });
+      const previousRequest = activeSerialRequest;
+      activeSerialRequest = request;
+      const deadline = Date.now() + request.timeoutMs;
+      let waiter = waitForLine(request.predicate, request.timeoutMs, request);
       try {
-        await writeSerialCommand(command);
-      } catch (error) {
+        logSerialCommand(command);
+        try {
+          await writeSerialCommand(command);
+        } catch (error) {
+          waiter.cancel();
+          throw error;
+        }
+        while (Date.now() < deadline) {
+          const line = await waiter;
+          if (/->\s*OK\b/i.test(line)) {
+            log(`[match] ${security.redactSerialText(line, request)}`);
+            await delay(getCommandSettleDelay(command));
+            return line;
+          }
+          if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
+            log(`[match] ${security.redactSerialText(line, request)}`);
+            throw new Error(request.sensitive ? `Device rejected ${request.label || "sensitive setting"}` : line);
+          }
+          log(`[skip] ${security.redactSerialText(line, request)}`);
+          const remaining = Math.max(1, deadline - Date.now());
+          waiter = waitForLine(request.predicate, remaining, request);
+        }
+        throw new Error("Timed out waiting for OK response");
+      } finally {
         waiter.cancel();
-        throw error;
+        if (activeSerialRequest === request) activeSerialRequest = previousRequest;
       }
-      while (Date.now() < deadline) {
-        const line = await waiter;
-        if (/->\s*OK\b/i.test(line)) {
-          log(`[match] ${security.redactSerialText(line, request)}`);
-          await delay(getCommandSettleDelay(command));
-          return line;
-        }
-        if (/->\s*(ERR|ERROR|FAIL)\b/i.test(line)) {
-          log(`[match] ${security.redactSerialText(line, request)}`);
-          throw new Error(request.sensitive ? `Device rejected ${request.label || "sensitive setting"}` : line);
-        }
-        log(`[skip] ${security.redactSerialText(line, request)}`);
-        const remaining = Math.max(1, deadline - Date.now());
-        waiter = waitForLine(request.predicate, remaining, request);
-      }
-      throw new Error("Timed out waiting for OK response");
-    } finally {
-      waiter.cancel();
-      if (activeSerialRequest === request) activeSerialRequest = previousRequest;
-    }
+    });
   }
 
   async function readSettingValue(key, timeoutMs = 6000) {
@@ -521,6 +546,26 @@
       log(`Readback warning for ${key}: ${error.message}`);
       return { line: "", value: "" };
     }
+  }
+
+  function parseMqttConnectedLine(line) {
+    const match = String(line || "").match(/mqtt\.connected\s*=\s*([^\s,;]+)/i);
+    if (!match) return null;
+    const value = match[1].replace(/[^\w.-]+$/g, "").toLowerCase();
+    if (["true", "1", "yes", "on", "connected"].includes(value)) return true;
+    if (["false", "0", "no", "off", "disconnected"].includes(value)) return false;
+    return null;
+  }
+
+  async function readMqttStatus(timeoutMs = 8000) {
+    const line = await runCommandExpectReply({
+      command: "show mqtt",
+      predicate: (value) => value.toLowerCase().includes("mqtt.connected="),
+      timeoutMs
+    });
+    const connected = parseMqttConnectedLine(line);
+    if (connected === null) throw new Error(`Unrecognized MQTT status: ${line}`);
+    return { connected, line };
   }
 
   async function runCommands(commands) {
@@ -809,7 +854,7 @@
   function prefillFromCaptureIfAny() { applyCapturedToForm(); }
 
   /* ── Build configuration plan (exact command surface) ─── */
-  function buildPlan({ validatePrivateKey = true, requireMqtt = true } = {}) {
+  function buildPlan({ validatePrivateKey = true, requireMqtt = true, requireWifi = true } = {}) {
     const v = (el) => el && el.value ? el.value.trim() : "";
     const repeaterName = v(cfgName) || String((captured && captured.name) || "").trim();
     const privateKey = v(cfgPrv);
@@ -819,8 +864,8 @@
     const longitude = v(cfgLon) || String((captured && captured.lon) || "").trim();
     const sharedModel = v(cfgModel);
     const sharedClientVersion = v(cfgClientVer);
-    const wifiSsid = cfgWifiSsid ? cfgWifiSsid.value : "";
-    const wifiPassword = cfgWifiPass ? cfgWifiPass.value : "";
+    const wifiSsid = cfgWifiSsid ? cfgWifiSsid.value.trim() : "";
+    const wifiPassword = cfgWifiPass ? cfgWifiPass.value.trim() : "";
 
     const invalidNameChars = repeaterName.match(/[[\]\\:,?*]/g);
     if (repeaterName.length > 31) throw new Error("Repeater name must be 31 characters or fewer");
@@ -833,6 +878,9 @@
     }
     if (guestPassword.length > 15) throw new Error("Guest password must be 15 characters or fewer");
     if (adminPassword.length > 15) throw new Error("Admin password must be 15 characters or fewer");
+    if (requireWifi && (!wifiSsid || !wifiPassword)) {
+      throw new Error("WiFi SSID and password are required before applying settings");
+    }
     if (latitude) {
       const parsed = Number.parseFloat(latitude);
       if (!Number.isFinite(parsed) || parsed < -90 || parsed > 90) throw new Error("Latitude must be a number between -90 and 90");
@@ -854,14 +902,21 @@
     if (requireMqtt && (!brokers[0] || !brokers[0].uri)) {
       throw new Error("Primary MQTT URI is required");
     }
+    if (requireMqtt) {
+      brokers.filter((broker) => broker.enabled).forEach((broker) => {
+        if (!broker.username || !broker.password) {
+          throw new Error(`Broker ${broker.index} username and password are required before applying MQTT settings`);
+        }
+      });
+    }
 
     const identity = [];
-    if (repeaterName) identity.push(`set name ${repeaterName}`);
-    if (latitude) identity.push(`set lat ${latitude}`);
-    if (longitude) identity.push(`set lon ${longitude}`);
+    if (repeaterName) identity.push({ command: `set name ${repeaterName}`, verifyKey: "name", expectedValue: repeaterName });
+    if (latitude) identity.push({ command: `set lat ${latitude}`, verifyKey: "lat", expectedValue: latitude });
+    if (longitude) identity.push({ command: `set lon ${longitude}`, verifyKey: "lon", expectedValue: longitude });
 
     const key = [];
-    if (privateKey) key.push(`set prv.key ${privateKey}`);
+    if (privateKey) key.push({ command: `set prv.key ${privateKey}`, verifyKey: "prv.key", expectedValue: privateKey });
 
     const auth = [];
     if (guestPassword) {
@@ -871,10 +926,10 @@
       auth.push({ command: `password ${adminPassword}`, timeoutMs: 5000, replyPredicate: (value) => /password now:/i.test(value) });
     }
 
-    const wifi = [
+    const wifi = requireWifi ? [
       { command: `set mqtt.wifi.ssid ${wifiSsid}`, verifyKey: "mqtt.wifi.ssid", expectedValue: String(wifiSsid) },
       { command: `set mqtt.wifi.pass ${wifiPassword}`, verifyKey: "mqtt.wifi.pass", expectedValue: String(wifiPassword) }
-    ];
+    ] : [];
 
     const mqtt = [
       ...(sharedModel ? [{ command: `set mqtt.model ${sharedModel}`, verifyKey: "mqtt.model", expectedValue: sharedModel }] : []),
@@ -980,6 +1035,11 @@
     if (!captured) {
       if (captureSummary) captureSummary.hidden = true;
       if (grid) grid.hidden = true;
+      ["cap-name", "cap-lat", "cap-lon", "cap-prv", "cap-guest", "cap-wifi", "cap-mqtt"].forEach((id) => {
+        const element = $(id);
+        if (element) element.textContent = "—";
+      });
+      if (captureSummary) captureSummary.innerHTML = "";
       return;
     }
     if (grid) grid.hidden = false;
@@ -1005,6 +1065,31 @@
     set("cap-guest", captured.guestPassword ? "captured" : "—");
     set("cap-wifi", captured.wifiSsid);
     set("cap-mqtt", (captured.brokers || []).filter(b => b.uri).length + " configured");
+  }
+
+  async function clearDeviceData() {
+    try {
+      await disconnectSerialSession({ silent: true });
+    } catch (_error) {
+      // Clear the in-memory values even if the port cannot close cleanly.
+    }
+    clearLegacyDeviceStorage();
+    captured = null;
+    lastAppliedPlan = null;
+    document.querySelectorAll("input, textarea").forEach((input) => {
+      const descriptor = `${input.name || ""} ${input.id || ""} ${input.type || ""} ${input.dataset?.k || ""}`;
+      if (input.type === "password" || /private.?key|prv.?key|password|secret/i.test(descriptor)) {
+        input.value = "";
+        if (/private.?key|prv.?key|password|secret/i.test(descriptor)) input.type = "password";
+      }
+    });
+    renderCapture();
+    refreshDefaultTopicInputs();
+    if (fileInput) fileInput.value = "";
+    if (btnDownload) btnDownload.disabled = true;
+    const logBody = $("log-body");
+    if (logBody) logBody.innerHTML = "";
+    updateDisabledStates();
   }
 
   /* ── Backup file (format matches original flasher) ── */
@@ -1058,11 +1143,11 @@
         lines.push(`MQTT Broker ${b.index} Retain Status: ${b.retainStatus || ""}`);
       });
     } else {
-      lines.push("No captured device values are stored for this board in this browser.");
+      lines.push("No captured device values are included for this board.");
     }
 
     lines.push("");
-    lines.push("[Step 4 Values Saved In This Browser]");
+    lines.push("[Step 4 Values For This Backup]");
     const f = snapshotForm();
     lines.push(`Repeater Name: ${f.repeaterName || ""}`);
     lines.push(`Private Key: ${f.privateKey || ""}`);
@@ -1091,20 +1176,30 @@
     return `${lines.join("\n")}\n`;
   }
 
-  function downloadBackup() {
+  async function downloadBackup() {
     if (!captured && !currentBoard) { fail("Nothing to back up yet"); return; }
-    const blob = new Blob([buildBackupFileContents()], { type: "text/plain;charset=utf-8" });
-    const rawName = (captured && captured.name) || (cfgName && cfgName.value.trim()) || (currentBoard && currentBoard.id) || "device";
-    const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-    const timestamp = new Date().toISOString().replace(/[:]/g, "-");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${safeName}-backup-${timestamp}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    ok("Backup downloaded");
+    const passphrase = window.prompt("Choose a passphrase of at least 12 characters. The encrypted backup expires after 7 days; keep this passphrase separate from the file.");
+    if (passphrase === null) return;
+    const confirmation = window.prompt("Enter the backup passphrase again to confirm.");
+    if (confirmation === null) return;
+    if (passphrase !== confirmation) { fail("Backup passphrases did not match"); return; }
+    try {
+      const envelope = await security.encryptDeviceBackup(buildBackupFileContents(), passphrase);
+      const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json;charset=utf-8" });
+      const rawName = (captured && captured.name) || (cfgName && cfgName.value.trim()) || (currentBoard && currentBoard.id) || "device";
+      const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      const timestamp = new Date().toISOString().replace(/[:]/g, "-");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${safeName}-encrypted-backup-${timestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      ok("Encrypted backup created; it expires in 7 days");
+    } catch (error) {
+      fail(`Encrypted backup failed: ${error.message}`);
+    }
   }
 
   function parseBackupFile(text) {
@@ -1120,7 +1215,7 @@
       const line = rawLine.trim();
       if (!line) continue;
       if (line === "[Captured Device Values]") { section = "captured"; continue; }
-      if (line === "[Step 4 Values Saved In This Browser]") { section = "step4"; continue; }
+      if (line === "[Step 4 Values Saved In This Browser]" || line === "[Step 4 Values For This Backup]") { section = "step4"; continue; }
 
       const colonIdx = line.indexOf(": ");
       if (colonIdx === -1) continue;
@@ -1187,6 +1282,26 @@
     }
 
     return result;
+  }
+
+  async function decodeBackupFile(text) {
+    let envelope = null;
+    try {
+      envelope = JSON.parse(text);
+    } catch (_error) {
+      // Legacy backups use a plain-text format.
+    }
+
+    if (envelope?.schema === "meshcore-device-backup") {
+      const passphrase = window.prompt("Enter the passphrase for this encrypted backup. The backup expires 7 days after it was created.");
+      if (passphrase === null) throw new Error("Backup import cancelled");
+      return parseBackupFile(await security.decryptDeviceBackup(envelope, passphrase));
+    }
+
+    if (!window.confirm("This older backup is plain text and may contain device credentials. Import it only from a source you trust. Continue?")) {
+      throw new Error("Plain-text backup import cancelled");
+    }
+    return parseBackupFile(text);
   }
 
   function applyStep4ToForm(step4) {
@@ -1286,10 +1401,12 @@
     return esptoolPromise;
   }
 
-  async function blobToBinaryString(u8) {
-    let result = "";
-    for (let i = 0; i < u8.length; i++) result += String.fromCharCode(u8[i]);
-    return result;
+  function bytesToBinaryString(u8) {
+    const chunks = [];
+    for (let i = 0; i < u8.length; i += 0x8000) {
+      chunks.push(String.fromCharCode(...u8.subarray(i, i + 0x8000)));
+    }
+    return chunks.join("");
   }
 
   async function buildFlashArtifacts(board, kind) {
@@ -1306,7 +1423,7 @@
         ...artifact,
         label: artifact.name,
         address: artifact.offset,
-        data: await blobToBinaryString(artifact.bytes)
+        data: bytesToBinaryString(artifact.bytes)
       });
     }
     return { ...verified, artifacts };
@@ -1325,25 +1442,47 @@
   }
 
   async function releaseFlashSession(transport, port) {
+    let released = true;
     if (transport && typeof transport.disconnect === "function") {
-      await settleSerialOperation(() => transport.disconnect(), 1200, "Flash disconnect warning", false);
+      released = await settleSerialOperation(() => transport.disconnect(), 1200, "Flash disconnect warning", false) && released;
     }
     if (port && (port.readable || port.writable)) {
-      await settleSerialOperation(() => port.close(), 1200, "Flash port close warning", false);
+      released = await settleSerialOperation(() => port.close(), 1200, "Flash port close warning", false) && released;
     }
     await delay(150);
+    return released;
   }
 
-  async function withTimeout(promise, ms, msg) {
-    const timer = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(msg || `Timed out after ${ms}ms`)), ms)
-    );
-    return Promise.race([promise, timer]);
+  async function runLoaderMainWithTimeout(loader, mode, timeoutMs, message) {
+    let timerId;
+    const operation = Promise.resolve().then(() => loader.main(mode));
+    const timeout = new Promise((_, reject) => {
+      timerId = setTimeout(() => reject(new Error(message || `Timed out after ${timeoutMs}ms`)), timeoutMs);
+    });
+    try {
+      return await Promise.race([operation, timeout]);
+    } catch (error) {
+      const reportedError = error instanceof Error ? error : new Error(String(error));
+      reportedError.pendingOperation = operation;
+      throw reportedError;
+    } finally {
+      clearTimeout(timerId);
+    }
   }
 
-  function isSerialSignalFailure(error) {
-    const message = String((error && error.message) || error || "");
-    return /setSignals/i.test(message) || /control signals/i.test(message);
+  async function cleanupBootloaderAttempt(error, transport) {
+    let released = false;
+    try {
+      released = await releaseFlashSession(transport, null);
+    } catch (releaseError) {
+      log(`Flash reconnect warning: ${releaseError.message}`);
+    }
+    let operationSettled = true;
+    if (error?.pendingOperation) {
+      const result = await window.MeshCoreSerialLifecycle.waitForSettlement(error.pendingOperation, 1200);
+      operationSettled = result.settled;
+    }
+    return released && operationSettled;
   }
 
   async function connectBootloaderWithFallback({ ESPLoader, HardReset, Transport, port, flashOptions, boardLabel }) {
@@ -1356,8 +1495,9 @@
 
     let { transport, loader } = makeLoader();
     try {
-      const chip = await withTimeout(
-        loader.main(),
+      const chip = await runLoaderMainWithTimeout(
+        loader,
+        undefined,
         12000,
         "Timed out. Enter download mode: hold BOOT, tap RESET, release BOOT."
       );
@@ -1365,7 +1505,13 @@
     } catch (error) {
       const needsManual = isSerialSignalFailure(error) ||
         /Timed out|Failed to connect|already open|InvalidStateError/i.test(String((error && error.message) || error));
-      if (!needsManual) throw error;
+      const previousAttemptStopped = await cleanupBootloaderAttempt(error, transport);
+      if (!previousAttemptStopped) {
+        throw new Error("The previous bootloader attempt did not stop cleanly; no retry was started. Close the serial session and restart the flasher before trying again.");
+      }
+      if (!needsManual) {
+        throw error;
+      }
 
       const usbVid = (port && typeof port.getInfo === "function" && port.getInfo().usbVendorId)
         ? port.getInfo().usbVendorId.toString(16) : "";
@@ -1382,15 +1528,20 @@
           : "") +
         "Click OK when ready and the flasher will retry connecting."
       );
-      try { await releaseFlashSession(transport, null); } catch (releaseError) { log(`Flash reconnect warning: ${releaseError.message}`); }
       await delay(2500);
       ({ transport, loader } = makeLoader());
-      const chip = await withTimeout(
-        loader.main("no_reset"),
-        12000,
-        "Still can't connect. Power-cycle the board and try again."
-      );
-      return { chip, loader, transport };
+      try {
+        const chip = await runLoaderMainWithTimeout(
+          loader,
+          "no_reset",
+          12000,
+          "Still can't connect. Power-cycle the board and try again."
+        );
+        return { chip, loader, transport };
+      } catch (retryError) {
+        await cleanupBootloaderAttempt(retryError, transport);
+        throw retryError;
+      }
     }
   }
 
@@ -1456,6 +1607,7 @@
         eraseAll: kind === "full",
         compress: true,
         fileArray: flashArtifacts.map((artifact) => ({ data: artifact.data, address: artifact.address })),
+        calculateMD5Hash: (data) => security.md5Hex(data),
         reportProgress(_fileIndex, written, total) {
           const percent = total > 0 ? Math.max(24, Math.min(98, Math.round((written / total) * 100))) : 24;
           if (flashBar) flashBar.style.width = percent + "%";
@@ -1515,6 +1667,7 @@
     catch (e) { fail(e.message); return; }
 
     applyingNow = true;
+    lastAppliedPlan = null;
     updateDisabledStates();
     if (applyLog) applyLog.textContent = "";
 
@@ -1545,6 +1698,7 @@
       logSerialCommand(plan.reboot[0]);
       await writeSerialCommand(plan.reboot[0]);
 
+      lastAppliedPlan = plan;
       if (reconnectApply) reconnectApply.hidden = false;
       ok("Settings applied. Device rebooted.");
       scheduleSerialDisconnect(2200, "Device configuration completed. Waiting for the reboot, then closing the serial session.");
@@ -1581,39 +1735,54 @@
 
   async function verifyNow() {
     if (!serialConnected) { fail("Connect serial to verify"); return; }
+    if (!lastAppliedPlan) { fail("Apply settings before verifying the device"); return; }
     expandLog();
     if (verifySummary) verifySummary.innerHTML = "Reading...";
-    const v = (el) => (el && el.value || "").trim();
-    const brokers = getMqttFormBrokers();
     const norm = (x) => String(x || "").trim();
     try {
       await ensureSerialCliReady();
       const rows = [];
-      const check = async (label, key, expected, opts = {}) => {
-        const { value } = await readOptionalSettingValue(key);
-        let match = expected == null || expected === "" ? null : (norm(value) === norm(expected));
-        if (opts.normalize) match = expected == null || expected === "" ? null : (opts.normalize(value) === opts.normalize(expected));
-        rows.push({ label, value: opts.mask && value ? "********" : value, match });
-      };
-      await check("Name", "name", v(cfgName) || (captured && captured.name));
-      await check("Lat", "lat", v(cfgLat) || (captured && captured.lat));
-      await check("Lon", "lon", v(cfgLon) || (captured && captured.lon));
-      await check("Guest", "guest.password", v(cfgGuest), { mask: true });
-      await check("Radio", "radio", buildRadioStr(), { normalize: normalizeRadioValue });
-      await check("WiFi SSID", "mqtt.wifi.ssid", cfgWifiSsid ? cfgWifiSsid.value : "");
-      await check("WiFi Pass", "mqtt.wifi.pass", cfgWifiPass ? cfgWifiPass.value : "", { mask: true });
-      brokers.forEach((b, idx) => {
-        if (!b.enabled) {
-          check(`MQTT${idx + 1} Enabled`, `mqtt.${idx + 1}.enabled`, "0");
-          return;
-        }
-        const root = brokerTopicRoot(b);
-        check(`MQTT${idx + 1} URI`, `mqtt.${idx + 1}.uri`, b.uri);
-        check(`MQTT${idx + 1} Topic`, `mqtt.${idx + 1}.topic.root`, root);
-        check(`MQTT${idx + 1} IATA`, `mqtt.${idx + 1}.iata`, b.iata);
-        check(`MQTT${idx + 1} Retain`, `mqtt.${idx + 1}.retain.status`, String(b.retainStatus));
-        check(`MQTT${idx + 1} Enabled`, `mqtt.${idx + 1}.enabled`, "1");
-      });
+      const checks = [{
+        label: "Radio",
+        key: "radio",
+        expected: String(lastAppliedPlan.radio[0]).replace(/^set radio\s+/i, ""),
+        normalize: normalizeRadioValue
+      }];
+      const labelForKey = (key) => ({
+        name: "Name",
+        lat: "Latitude",
+        lon: "Longitude",
+        "prv.key": "Private key",
+        "guest.password": "Guest password",
+        "mqtt.wifi.ssid": "WiFi SSID",
+        "mqtt.wifi.pass": "WiFi password",
+        "mqtt.model": "MQTT model",
+        "mqtt.client.version": "MQTT client version"
+      }[key] || key.replace(/^mqtt\.(\d+)\./, "Broker $1 ").replace(/\./g, " "));
+      for (const entry of [
+        ...lastAppliedPlan.identity,
+        ...lastAppliedPlan.auth,
+        ...lastAppliedPlan.wifi,
+        ...lastAppliedPlan.key,
+        ...lastAppliedPlan.mqtt
+      ]) {
+        if (!entry?.verifyKey) continue;
+        checks.push({
+          label: labelForKey(entry.verifyKey),
+          key: entry.verifyKey,
+          expected: entry.expectedValue,
+          mask: security.isSensitiveSettingKey(entry.verifyKey)
+        });
+      }
+      for (const check of checks) {
+        const { value } = await readSettingValue(check.key);
+        const match = check.normalize
+          ? check.normalize(value) === check.normalize(check.expected)
+          : norm(value) === norm(check.expected);
+        rows.push({ label: check.label, value: check.mask ? "********" : value, match });
+      }
+      const runtime = await readMqttStatus();
+      rows.push({ label: "MQTT connected", value: String(runtime.connected), match: runtime.connected === true });
       if (verifySummary) {
         const matched = rows.filter(r => r.match === true).length;
         const failed = rows.filter(r => r.match === false).length;
@@ -1623,6 +1792,10 @@
           return `<div>${escapeHtml(r.label)}: ${escapeHtml(r.value || "—")}${mark}</div>`;
         }).join("") +
         `<div class="verify-total">${matched} of ${rows.length - skipped} matched` + (failed ? ` — <span class="bad">${failed} mismatched</span>` : "") + `</div>`;
+        if (failed === 0 && skipped === 0) {
+          await clearDeviceData();
+          ok("Settings verified; device data cleared from this session");
+        }
       }
     } catch (e) {
       if (verifySummary) verifySummary.textContent = "Verify failed: " + e.message;
@@ -1639,7 +1812,7 @@
     fi.value = "";
     try {
       const txt = await f.text();
-      const parsed = parseBackupFile(txt);
+      const parsed = await decodeBackupFile(txt);
       if (!parsed.captured && !parsed.step4) { fail("Could not parse backup file"); return; }
       let boardMatched = false;
       if (parsed.boardId) {
@@ -1717,7 +1890,9 @@
   safe(btnReboot, b => b.addEventListener("click", rebootDevice));
   safe(btnReconnectApply, b => b.addEventListener("click", connectSerial));
   safe(btnVerify, b => b.addEventListener("click", verifyNow));
-  safe(btnDone, b => b.addEventListener("click", () => {
+  safe($("btn-clear-device-data"), b => b.addEventListener("click", clearDeviceData));
+  safe(btnDone, b => b.addEventListener("click", async () => {
+    await clearDeviceData();
     flashComplete = false;
     if (reconnectApply) reconnectApply.hidden = true;
     if (reconnectFlash) reconnectFlash.hidden = true;
@@ -1750,10 +1925,6 @@
       buildMqttBrokerUI();
       updateRadioCmd();
       showStep(1);
-      setTimeout(() => {
-        if (cfgWifiSsid && !cfgWifiSsid.value) cfgWifiSsid.value = "UKMesh-Radio";
-        if (cfgWifiPass && !cfgWifiPass.value) cfgWifiPass.value = "password123";
-      }, 50);
       log("Ready. Connect your device via USB and use the steps above.");
     } catch (e) {
       console.error(e);
