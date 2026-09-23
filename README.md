@@ -10,6 +10,10 @@ This repository ships a static browser application that can:
 - verify the resulting runtime state after configuration
 - serve the flasher through Nginx and Docker Compose, with an externally managed Cloudflare tunnel when required
 
+Device credentials stay in memory for the current session. Downloaded backups are
+encrypted with a passphrase and expire after seven days; older plain-text backups
+require confirmation before import.
+
 The current signed release contains ESP32-S3 MeshCore repeater targets whose firmware
 binaries and release inventory are committed into this repository under `firmware/`.
 

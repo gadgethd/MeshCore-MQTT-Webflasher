@@ -2144,7 +2144,7 @@ function buildBackupFileContents() {
       lines.push(`MQTT Broker ${broker.index} Retain Status: ${broker.retainStatus || ""}`);
     });
   } else {
-    lines.push("No captured device values are stored for this board in this browser.");
+    lines.push("No captured device values are included for this board.");
   }
 
   lines.push("");

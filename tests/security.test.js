@@ -178,3 +178,73 @@ test("serial lifecycle reports whether a prior bootloader attempt actually settl
     assert.match(source, /if \(!previousAttemptStopped\)[\s\S]*?no retry was started/);
   }
 });
+
+test("firmware catalogs load as validated JSON under the shared CSP", () => {
+  const rootHtml = fs.readFileSync(path.join(repositoryRoot, "index.html"), "utf8");
+  const newHtml = fs.readFileSync(path.join(repositoryRoot, "new/index.html"), "utf8");
+  const rootLoader = fs.readFileSync(path.join(repositoryRoot, "assets/firmware-loader.js"), "utf8");
+  const newLoader = fs.readFileSync(path.join(repositoryRoot, "new/assets/firmware-loader.js"), "utf8");
+  const rootCatalog = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "assets/firmware-data.json"), "utf8"));
+  const newCatalog = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "new/assets/firmware-data.json"), "utf8"));
+  const nginx = fs.readFileSync(path.join(repositoryRoot, "nginx.conf"), "utf8");
+  const headers = fs.readFileSync(path.join(repositoryRoot, "security-headers.conf"), "utf8");
+
+  for (const [html, loaderPath] of [[rootHtml, "assets/firmware-loader.js"], [newHtml, "assets/firmware-loader.js"]]) {
+    assert.doesNotMatch(html, /firmware-data\.js/);
+    assert.match(html, /security\.js/);
+    assert.match(html, new RegExp(`<script type="module" src="${loaderPath.replaceAll("/", "\\/")}`));
+  }
+  for (const loader of [rootLoader, newLoader]) {
+    assert.match(loader, /response\.json\(\)/);
+    assert.match(loader, /catalog\.schemaVersion !== 1/);
+    assert.match(loader, /window\.FIRMWARE_DATA = validateCatalog/);
+    assert.match(loader, /await import\("\.\/app\.js\?/);
+  }
+  assert.equal(rootCatalog.schemaVersion, 1);
+  assert.deepEqual(rootCatalog, newCatalog);
+  assert.match(nginx, /location = \/assets\/firmware-data\.json/);
+  assert.match(nginx, /location = \/new\/assets\/firmware-data\.json/);
+  assert.match(headers, /X-Content-Type-Options/);
+  assert.match(headers, /Content-Security-Policy/);
+  assert.match(headers, /object-src 'none'/);
+  assert.match(headers, /base-uri 'none'/);
+  assert.match(headers, /frame-ancestors 'none'/);
+  assert.doesNotMatch(headers, /unsafe-eval/);
+});
+
+test("binary string conversion is chunked and inert root stubs are removed", () => {
+  const rootApp = fs.readFileSync(path.join(repositoryRoot, "assets/app.js"), "utf8");
+  const newApp = fs.readFileSync(path.join(repositoryRoot, "new/assets/app.js"), "utf8");
+  for (const source of [rootApp, newApp]) {
+    assert.match(source, /subarray\((?:index|i), (?:index|i) \+ 0x8000\)/);
+    assert.match(source, /return chunks\.join\(""\)/);
+    assert.doesNotMatch(source, /result \+= String\.fromCharCode/);
+  }
+  for (const name of [
+    "syncBrokerTransportCheckboxesFromUri",
+    "syncBrokerUriFromTransport",
+    "syncAllBrokerTransportControlsFromUri",
+    "syncAllBrokerUrisFromTransport",
+    "updateModeButtons",
+    "updateAdvancedTabs",
+    "reconnectSerialForRetry",
+    "applyRetryPlan"
+  ]) {
+    assert.doesNotMatch(rootApp, new RegExp(`function ${name}\\(`));
+  }
+  assert.equal((newApp.match(/function isSerialSignalFailure\(/g) || []).length, 1);
+  assert.match(rootApp, /verify-config-button/);
+  assert.match(rootApp, /await verifyDeviceSettings\(\)/);
+});
+
+test("Compose is loopback-only and tunnel setup is documented as external", () => {
+  const compose = fs.readFileSync(path.join(repositoryRoot, "compose.yml"), "utf8");
+  const readme = fs.readFileSync(path.join(repositoryRoot, "README.md"), "utf8");
+  const deployment = fs.readFileSync(path.join(repositoryRoot, "docs/deployment.md"), "utf8");
+  assert.match(compose, /127\.0\.0\.1:8080:80/);
+  assert.doesNotMatch(compose, /cloudflared/);
+  assert.doesNotMatch(readme, /cloudflared token|CLOUDFLARED_TOKEN/i);
+  assert.match(readme, /cloudflared\.service/);
+  assert.match(deployment, /cloudflared\.service/);
+  assert.equal(fs.existsSync(path.join(repositoryRoot, ".env.example")), false);
+});

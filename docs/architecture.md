@@ -8,8 +8,9 @@ Runtime pieces:
 
 - `index.html`: renders the full workflow and all configuration fields
 - `assets/styles.css`: styles and responsive layout
-- `assets/app.js`: state, validation, flashing, serial I/O, verification, local storage
-- `assets/security.js`: pinned signing key, firmware verification, chip checks, serial redaction
+- `assets/app.js`: session state, validation, flashing, serial I/O, and verification
+- `assets/security.js`: pinned signing key, firmware verification, chip checks, serial redaction, encrypted backups
+- `assets/serial-lifecycle.js`: bounded serial-operation settlement before retry
 - `assets/vendor/esptool-js-bundle.js`: browser flashing library
 - `assets/firmware-data.json` and `new/assets/firmware-data.json`: generated stable board catalogs
 - `firmware/`: committed binaries, release inventory, and signed release manifest
@@ -36,14 +37,15 @@ Important state buckets:
 
 ## Browser Persistence
 
-The app uses `localStorage` to persist:
+The app keeps captured device information and configuration form values in memory for the
+current session. On startup, both UIs remove legacy per-board device and form records from
+`localStorage`; only UI preferences such as theme, intent, and selected mode remain there.
 
-- UI mode
-- captured device snapshots, keyed by board ID
-- saved configuration form values, keyed by board ID
+The Clear Device Data action closes the serial session, clears secret fields and captured
+objects, and empties the logs. Successful verification and the `/new/` Start Over action
+also clear the session data.
 
-This persistence is local to the operator's browser. There is no server-side storage or
-sync between clients.
+There is no server-side storage or sync between clients.
 
 ## Firmware Catalog Loading
 
@@ -105,7 +107,7 @@ The backup flow is tightly coupled to the configuration form.
 
 When a device snapshot is captured:
 
-- values are written to browser storage under the selected board
+- values stay in session memory only
 - the UI updates summary chips immediately
 - form inputs are prefilled where applicable
 - the command preview is rebuilt from the resulting state
@@ -113,7 +115,11 @@ When a device snapshot is captured:
 Backup export combines two sources:
 
 - captured live device values
-- step-4 values saved in the browser
+- step-4 values in session memory
+
+Exports use AES-256-GCM with a PBKDF2-SHA-256 passphrase key. The file expires after
+seven days; the passphrase is not stored. Importing a legacy plain-text backup requires
+explicit confirmation.
 
 ## MQTT Broker Logic
 

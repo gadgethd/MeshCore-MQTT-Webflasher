@@ -14,7 +14,11 @@ jobs:
         with:
           node-version: 20
       - run: node --check assets/security.js
+      - run: node --check assets/serial-lifecycle.js
+      - run: node --check assets/firmware-loader.js
       - run: node --check assets/app.js
+      - run: node --check new/assets/firmware-loader.js
       - run: node --check new/assets/app.js
       - run: node --test tests/*.test.js
       - run: node scripts/verify-firmware-release.mjs
+      - run: docker compose config --quiet

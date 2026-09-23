@@ -36,7 +36,7 @@ and hosting files all live together.
 
 The application is organized into five operator steps:
 
-1. Read current device info and optionally export a plain-text backup.
+1. Read current device info and optionally export an encrypted backup.
 2. Choose a supported board from the published firmware catalog.
 3. Select radio settings and flash either a full image or an update image.
 4. Configure device identity, location, WiFi, and MQTT settings.
@@ -86,7 +86,6 @@ because no matching development artifacts were published.
 - Before opening Web Serial, the browser verifies the pinned Ed25519 signature and every
   selected segment's same-origin URL, exact size, SHA-256, chip ID, and offset. It then
   requires the ESP image headers, signed chip metadata, and detected bootloader chip to agree.
-- Device backups and saved form state are stored only in the browser. There is no
-  backend storage in this repository.
-- Sensitive CLI replies are redacted by command context before logs or clipboard output, but backup
-  exports contain secrets in plain text by design.
+- Captured device values and form state stay in memory for the current session. Explicit
+  backups are encrypted with a passphrase and expire after seven days.
+- Sensitive CLI replies are redacted by command context before logs or clipboard output.
