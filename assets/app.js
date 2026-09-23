@@ -266,13 +266,21 @@ function humanFlashPackage(board) {
   return "full";
 }
 
-function browserCaptureKey(boardId) {
-  return `meshcore-mqtt-device-info:${boardId}`;
+function clearLegacyDeviceStorage() {
+  try {
+    const prefixes = ["meshcore-mqtt-device-info:", "meshcore-mqtt-step4-settings:"];
+    const keysToRemove = [];
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index);
+      if (key && prefixes.some((prefix) => key.startsWith(prefix))) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+  } catch (_error) {
+    // Storage may be disabled; device data still stays in memory only.
+  }
 }
 
-function browserSettingsKey(boardId) {
-  return `meshcore-mqtt-step4-settings:${boardId}`;
-}
+clearLegacyDeviceStorage();
 
 function normalizeUiMode(value) {
   return value === UI_MODES.ADVANCED ? UI_MODES.ADVANCED : value === UI_MODES.SIMPLE ? UI_MODES.SIMPLE : null;
@@ -1083,7 +1091,7 @@ function parseBackupFile(text) {
     const line = rawLine.trim();
     if (!line) continue;
     if (line === "[Captured Device Values]") { section = "captured"; continue; }
-    if (line === "[Step 4 Values Saved In This Browser]") { section = "step4"; continue; }
+      if (line === "[Step 4 Values Saved In This Browser]" || line === "[Step 4 Values For This Backup]") { section = "step4"; continue; }
 
     const colonIdx = line.indexOf(": ");
     if (colonIdx === -1) continue;
@@ -1152,6 +1160,26 @@ function parseBackupFile(text) {
   return result;
 }
 
+async function decodeBackupFile(text) {
+  let envelope = null;
+  try {
+    envelope = JSON.parse(text);
+  } catch (_error) {
+    // Legacy backups use a plain-text format.
+  }
+
+  if (envelope?.schema === "meshcore-device-backup") {
+    const passphrase = window.prompt("Enter the passphrase for this encrypted backup. The backup expires 7 days after it was created.");
+    if (passphrase === null) throw new Error("Backup import cancelled");
+    return parseBackupFile(await security.decryptDeviceBackup(envelope, passphrase));
+  }
+
+  if (!window.confirm("This older backup is plain text and may contain device credentials. Import it only from a source you trust. Continue?")) {
+    throw new Error("Plain-text backup import cancelled");
+  }
+  return parseBackupFile(text);
+}
+
 function loadBackupFromFile() {
   const input = document.getElementById("restore-backup-input");
   if (!input) return;
@@ -1161,7 +1189,7 @@ function loadBackupFromFile() {
     input.value = "";
     try {
       const text = await file.text();
-      const parsed = parseBackupFile(text);
+      const parsed = await decodeBackupFile(text);
       if (!parsed.captured && !parsed.step4) {
         showToast("Could not parse backup file", "error");
         appendLog("Backup restore failed: unrecognised file format.");
@@ -1176,17 +1204,14 @@ function loadBackupFromFile() {
           appendLog(`Board "${parsed.boardId}" from backup not found in firmware list — select manually.`);
         }
       }
-      const boardId = currentBoard?.id || parsed.boardId || "unknown";
       if (parsed.captured) {
         capturedDeviceInfo = parsed.captured;
-        saveCapturedDeviceInfo(boardId, capturedDeviceInfo);
         renderCapturedDeviceInfo(capturedDeviceInfo);
         applyCapturedDeviceInfoToForm(capturedDeviceInfo);
         setPanelState(deviceReadState, "Loaded from backup file", "panel__status--success");
       }
       if (parsed.step4) {
         savedStep4Settings = parsed.step4;
-        saveStep4Settings(boardId, savedStep4Settings);
         applySavedStep4SettingsToForm(savedStep4Settings);
       }
       updateBackupExportAvailability();
@@ -1892,25 +1917,6 @@ function renderCapturedDeviceInfo(info) {
   updateBackupExportAvailability();
 }
 
-function saveCapturedDeviceInfo(boardId, info) {
-  try {
-    window.localStorage.setItem(browserCaptureKey(boardId), JSON.stringify(info));
-  } catch (error) {
-    appendLog(`Browser storage warning: ${error.message}`);
-  }
-}
-
-function loadCapturedDeviceInfo(boardId) {
-  try {
-    const raw = window.localStorage.getItem(browserCaptureKey(boardId));
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (error) {
-    appendLog(`Browser storage warning: ${error.message}`);
-    return null;
-  }
-}
-
 function readStep4SettingsFromForm() {
   const formData = new FormData(settingsForm);
   const brokers = Array.from({ length: MQTT_MAX_BROKERS }, (_, offset) => readBrokerSettings(formData, offset + 1, { respectMode: false }));
@@ -1930,23 +1936,36 @@ function readStep4SettingsFromForm() {
   };
 }
 
-function saveStep4Settings(boardId, settings) {
+async function clearDeviceData({ notify = true } = {}) {
   try {
-    window.localStorage.setItem(browserSettingsKey(boardId), JSON.stringify(settings));
-  } catch (error) {
-    appendLog(`Browser storage warning: ${error.message}`);
+    await disconnectSerialSession({ silent: true });
+  } catch (_error) {
+    // The form and in-memory copy still need to be cleared if disconnect fails.
   }
-}
-
-function loadStep4Settings(boardId) {
-  try {
-    const raw = window.localStorage.getItem(browserSettingsKey(boardId));
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch (error) {
-    appendLog(`Browser storage warning: ${error.message}`);
-    return null;
-  }
+  clearLegacyDeviceStorage();
+  capturedDeviceInfo = null;
+  savedStep4Settings = null;
+  lastAppliedPlan = null;
+  configApplied = false;
+  guidedReadComplete = false;
+  backupSkipped = false;
+  activeMqttBrokerIds.clear();
+  document.querySelectorAll("input, textarea").forEach((input) => {
+    const descriptor = `${input.name || ""} ${input.id || ""} ${input.type || ""}`;
+    if (input.type === "password" || /private.?key|prv.?key|password|secret/i.test(descriptor)) {
+      input.value = "";
+      if (/private.?key|prv.?key|password|secret/i.test(descriptor)) input.type = "password";
+    }
+  });
+  const verifyButton = document.getElementById("verify-config-button");
+  if (verifyButton) verifyButton.hidden = true;
+  if (logPane) logPane.innerHTML = "";
+  if (guidedLogPane) guidedLogPane.innerHTML = "";
+  renderCapturedDeviceInfo(null);
+  updateBackupExportAvailability();
+  updateBrokerTopicPreviews();
+  buildCommandPreview();
+  if (notify) showToast("Device data cleared from this session", "success");
 }
 
 function wasFieldEdited(input) {
@@ -2056,7 +2075,6 @@ function applySavedStep4SettingsToForm(settings, { preserveEdited = false } = {}
 function persistCurrentStep4Settings() {
   if (!currentBoard) return;
   savedStep4Settings = readStep4SettingsFromForm();
-  saveStep4Settings(currentBoard.id, savedStep4Settings);
   updateBackupExportAvailability();
 }
 
@@ -2166,7 +2184,7 @@ function buildBackupFileContents() {
   }
 
   lines.push("");
-  lines.push("[Step 4 Values Saved In This Browser]");
+  lines.push("[Step 4 Values For This Backup]");
   lines.push(`Repeater Name: ${saved?.repeaterName || ""}`);
   lines.push(`Private Key: ${saved?.privateKey || ""}`);
   lines.push(`Guest Password: ${saved?.guestPassword || ""}`);
@@ -2203,22 +2221,37 @@ function buildBackupFileContents() {
   return `${lines.join("\n")}\n`;
 }
 
-function downloadBackupFile() {
-  const blob = new Blob([buildBackupFileContents()], { type: "text/plain;charset=utf-8" });
-  const url = window.URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  const rawName = capturedDeviceInfo?.name
-    || repeaterNameInput?.value?.trim()
-    || currentBoard?.id
-    || "device";
-  const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  const timestamp = new Date().toISOString().replace(/[:]/g, "-");
-  anchor.href = url;
-  anchor.download = `${safeName}-backup-${timestamp}.txt`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+async function downloadBackupFile() {
+  const passphrase = window.prompt("Choose a passphrase of at least 12 characters. The encrypted backup expires after 7 days; keep this passphrase separate from the file.");
+  if (passphrase === null) return;
+  const confirmation = window.prompt("Enter the backup passphrase again to confirm.");
+  if (confirmation === null) return;
+  if (passphrase !== confirmation) {
+    showToast("Backup passphrases did not match", "error");
+    return;
+  }
+
+  try {
+    const envelope = await security.encryptDeviceBackup(buildBackupFileContents(), passphrase);
+    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const rawName = capturedDeviceInfo?.name
+      || repeaterNameInput?.value?.trim()
+      || currentBoard?.id
+      || "device";
+    const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    const timestamp = new Date().toISOString().replace(/[:]/g, "-");
+    anchor.href = url;
+    anchor.download = `${safeName}-encrypted-backup-${timestamp}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    showToast("Encrypted backup created; it expires in 7 days", "success");
+  } catch (error) {
+    showToast(`Encrypted backup failed: ${error.message}`, "error");
+  }
 }
 
 function setBoardDetails(board, { userSelected = false } = {}) {
@@ -2241,8 +2274,8 @@ function setBoardDetails(board, { userSelected = false } = {}) {
   artifactFullName.textContent = board.artifacts.full;
   artifactUpdateName.textContent = board.artifacts.update || board.artifacts.full;
   renderBoardNotes(board);
-  capturedDeviceInfo = loadCapturedDeviceInfo(board.id);
-  savedStep4Settings = loadStep4Settings(board.id);
+  capturedDeviceInfo = null;
+  savedStep4Settings = null;
   resetSettingsFormForBoard();
   renderCapturedDeviceInfo(capturedDeviceInfo);
   if (capturedDeviceInfo) {
@@ -2916,6 +2949,7 @@ async function settleSerialOperation(operation, timeoutMs, warningLabel, silent)
   if (result.status === "timeout" && !silent) {
     appendLog(`${warningLabel}: timed out`);
   }
+  return result.status === "ok";
 }
 
 function cancelScheduledSerialDisconnect() {
@@ -3187,25 +3221,27 @@ async function pulseEspReset(transport) {
 }
 
 async function releaseFlashSession(transport, port) {
+  let released = true;
   if (transport && typeof transport.disconnect === "function") {
-    await settleSerialOperation(
+    released = await settleSerialOperation(
       () => transport.disconnect(),
       1200,
       "Flash disconnect warning",
       false
-    );
+    ) && released;
   }
 
   if (port && (port.readable || port.writable)) {
-    await settleSerialOperation(
+    released = await settleSerialOperation(
       () => port.close(),
       1200,
       "Flash port close warning",
       false
-    );
+    ) && released;
   }
 
   await delay(150);
+  return released;
 }
 
 async function runLoaderMainWithTimeout(loader, mode, timeoutMs, message) {
@@ -3226,14 +3262,18 @@ async function runLoaderMainWithTimeout(loader, mode, timeoutMs, message) {
 }
 
 async function cleanupBootloaderAttempt(error, transport) {
+  let released = false;
   try {
-    await releaseFlashSession(transport, null);
+    released = await releaseFlashSession(transport, null);
   } catch (releaseError) {
     appendLog(`Flash reconnect warning: ${releaseError.message}`);
   }
+  let operationSettled = true;
   if (error?.pendingOperation) {
-    await settleSerialOperation(() => error.pendingOperation, 1200, "Bootloader cleanup warning", true);
+    const result = await window.MeshCoreSerialLifecycle.waitForSettlement(error.pendingOperation, 1200);
+    operationSettled = result.settled;
   }
+  return released && operationSettled;
 }
 
 async function readMqttStatus(timeoutMs = 8000) {
@@ -3307,13 +3347,15 @@ async function connectBootloaderWithFallback({
   } catch (error) {
     const needsManual = isSerialSignalFailure(error) ||
       /Timed out|Failed to connect|already open|InvalidStateError/i.test(String(error?.message || error));
+    const previousAttemptStopped = await cleanupBootloaderAttempt(error, transport);
+    if (!previousAttemptStopped) {
+      throw new Error("The previous bootloader attempt did not stop cleanly; no retry was started. Close the serial session and restart the flasher before trying again.");
+    }
     if (!needsManual) {
-      await cleanupBootloaderAttempt(error, transport);
       throw error;
     }
 
     appendLog("Automatic bootloader entry failed — browser cannot toggle serial control lines.");
-    await cleanupBootloaderAttempt(error, transport);
     window.alert(
       "Manual bootloader entry required\n\n" +
       `Please perform these steps on your ${boardLabel}:\n\n` +
@@ -3455,7 +3497,7 @@ async function verifyConfiguredDevice() {
     setPanelState(verifyState, "Verified", "panel__status--success");
     setText(summaryConfig, "Applied and verified");
     setText(summaryMqtt, "mqtt.connected=true");
-    appendLog("All applied settings and MQTT runtime state verified.");
+    await clearDeviceData({ notify: false });
     showToast("Settings verified ✓", "success");
   } catch (error) {
     setPanelState(verifyState, "Verification failed", "panel__status--error");
@@ -3718,13 +3760,12 @@ async function captureCurrentDeviceInfo() {
     };
 
     capturedDeviceInfo = info;
-    saveCapturedDeviceInfo(currentBoard?.id || "device", info);
     renderCapturedDeviceInfo(info);
     applyCapturedDeviceInfoToForm(info, { preserveEdited: true });
     persistCurrentStep4Settings();
     buildCommandPreview();
     setPanelState(deviceReadState, "Captured", "panel__status--success");
-    appendLog("Captured current device info and stored it in this browser for this board.");
+    appendLog("Captured current device info in memory for this session.");
     showStepContinue("read-device", "Device backup captured — continue to board selection");
   } finally {
     if (openedHere) {
@@ -4260,13 +4301,16 @@ captureDeviceButton.addEventListener("click", async () => {
   }
 });
 
-downloadBackupButton.addEventListener("click", () => {
+downloadBackupButton.addEventListener("click", async () => {
   try {
-    downloadBackupFile();
-    appendLog("Downloaded the current board backup as a text file.");
+    await downloadBackupFile();
   } catch (error) {
     appendLog(`Backup download failed: ${error.message}`);
   }
+});
+
+document.getElementById("clear-device-data-button")?.addEventListener("click", () => {
+  clearDeviceData();
 });
 
 flashButton.addEventListener("click", async () => {

@@ -9,6 +9,10 @@
   const SIGNING_KEY_ID = "meshcore-mqtt-webflasher-2026-08";
   const SIGNING_PUBLIC_KEY_BASE64 = "ZeZvaCPRslfhfdYo1JKmLBMX1YTR79T8qSH1vAsDwXI=";
   const SHA256_PATTERN = /^[0-9a-f]{64}$/;
+  const DEVICE_BACKUP_SCHEMA = "meshcore-device-backup";
+  const DEVICE_BACKUP_VERSION = 1;
+  const DEVICE_BACKUP_ITERATIONS = 310000;
+  const DEVICE_BACKUP_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const CHIP_IDS = Object.freeze({
     ESP32: 0x0000,
     "ESP32-S2": 0x0002,
@@ -32,6 +36,98 @@
   function base64ToBytes(value) {
     const binary = atob(value);
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  }
+
+  function bytesToBase64(bytes) {
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+    }
+    return btoa(binary);
+  }
+
+  function deviceBackupAad(createdAt, expiresAt) {
+    return new TextEncoder().encode(`${DEVICE_BACKUP_SCHEMA}\n${DEVICE_BACKUP_VERSION}\n${createdAt}\n${expiresAt}`);
+  }
+
+  async function deriveDeviceBackupKey(passphrase, salt) {
+    if (!root.crypto?.subtle) throw new Error("Web Crypto is required for encrypted backups");
+    const material = await root.crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(passphrase),
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+    return root.crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt, iterations: DEVICE_BACKUP_ITERATIONS, hash: "SHA-256" },
+      material,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  async function encryptDeviceBackup(plaintext, passphrase, { now = Date.now() } = {}) {
+    if (typeof plaintext !== "string") throw new Error("Backup content must be text");
+    if (typeof passphrase !== "string" || passphrase.length < 12) {
+      throw new Error("Backup passphrase must be at least 12 characters");
+    }
+    if (!root.crypto?.getRandomValues || !root.crypto?.subtle) throw new Error("Web Crypto is required for encrypted backups");
+
+    const createdAt = new Date(now).toISOString();
+    const expiresAt = new Date(now + DEVICE_BACKUP_TTL_MS).toISOString();
+    const salt = root.crypto.getRandomValues(new Uint8Array(16));
+    const iv = root.crypto.getRandomValues(new Uint8Array(12));
+    const key = await deriveDeviceBackupKey(passphrase, salt);
+    const ciphertext = await root.crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, additionalData: deviceBackupAad(createdAt, expiresAt) },
+      key,
+      new TextEncoder().encode(plaintext)
+    );
+
+    return {
+      schema: DEVICE_BACKUP_SCHEMA,
+      version: DEVICE_BACKUP_VERSION,
+      kdf: "PBKDF2-SHA-256",
+      iterations: DEVICE_BACKUP_ITERATIONS,
+      cipher: "AES-256-GCM",
+      createdAt,
+      expiresAt,
+      salt: bytesToBase64(salt),
+      iv: bytesToBase64(iv),
+      ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+    };
+  }
+
+  async function decryptDeviceBackup(envelope, passphrase, { now = Date.now() } = {}) {
+    if (!envelope || typeof envelope !== "object" || envelope.schema !== DEVICE_BACKUP_SCHEMA || envelope.version !== DEVICE_BACKUP_VERSION) {
+      throw new Error("Unsupported encrypted backup format");
+    }
+    if (envelope.kdf !== "PBKDF2-SHA-256" || envelope.iterations !== DEVICE_BACKUP_ITERATIONS || envelope.cipher !== "AES-256-GCM") {
+      throw new Error("Unsupported encrypted backup settings");
+    }
+    if (typeof passphrase !== "string" || passphrase.length < 12) throw new Error("Backup passphrase must be at least 12 characters");
+    const expiry = Date.parse(envelope.expiresAt);
+    const created = Date.parse(envelope.createdAt);
+    if (!Number.isFinite(expiry) || !Number.isFinite(created) || expiry <= created) throw new Error("Encrypted backup expiry metadata is invalid");
+    if (now > expiry) throw new Error("This backup has expired; create a new encrypted backup from the device");
+
+    try {
+      const salt = base64ToBytes(envelope.salt);
+      const iv = base64ToBytes(envelope.iv);
+      const ciphertext = base64ToBytes(envelope.ciphertext);
+      if (salt.length !== 16 || iv.length !== 12 || ciphertext.length < 16) throw new Error("Encrypted backup data is invalid");
+      const key = await deriveDeviceBackupKey(passphrase, salt);
+      const plaintext = await root.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv, additionalData: deviceBackupAad(envelope.createdAt, envelope.expiresAt) },
+        key,
+        ciphertext
+      );
+      return new TextDecoder().decode(plaintext);
+    } catch (_error) {
+      throw new Error("Backup could not be decrypted; check the passphrase and file integrity");
+    }
   }
 
   function bytesToHex(bytes) {
@@ -334,6 +430,9 @@
     loadVerifiedFirmware,
     maskSensitiveCommand,
     md5Hex,
+    encryptDeviceBackup,
+    decryptDeviceBackup,
+    deviceBackupTtlMs: DEVICE_BACKUP_TTL_MS,
     normalizeChipName,
     parseEspImageChipId,
     redactSerialText,

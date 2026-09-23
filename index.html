@@ -158,11 +158,12 @@
                 <span class="step-brief__label">Mission Brief</span>
                 <p id="step-1-brief-text">Read the current device settings before flashing — this captures your identity key, guest password, WiFi credentials, and MQTT brokers so they can be restored after flashing.</p>
               </div>
-              <input type="file" id="restore-backup-input" accept=".txt" hidden>
+              <input type="file" id="restore-backup-input" accept=".json,.txt" hidden>
               <div class="action-row">
                 <button class="button button--primary" id="capture-device-button" type="button">Read Current Device Info</button>
                 <button class="button button--ghost" id="upload-backup-button" type="button">Upload Backup File</button>
-                <button class="button button--ghost" id="download-backup-button" type="button" disabled>Download Backup (.txt)</button>
+                <button class="button button--ghost" id="download-backup-button" type="button" disabled>Download Encrypted Backup</button>
+                <button class="button button--ghost" id="clear-device-data-button" type="button">Clear Device Data</button>
                 <button class="button button--ghost" id="skip-backup-button" type="button" hidden>Skip Backup →</button>
               </div>
               <div id="backup-summary" class="backup-summary" hidden></div>
@@ -197,8 +198,8 @@
                 </div>
               </div>
               <div class="note-list">
-                <p>Read the current device values before flashing. The browser stores the captured identity, guest password, radio, WiFi, and MQTT values locally for this board and pre-fills Step 4 and Step 5 where possible.</p>
-                <p>The backup download is a plain-text snapshot of the captured device values plus the Step 4 and Step 5 values saved in this browser for the current board. You can upload a previously downloaded backup to restore all settings without connecting to the device first.</p>
+                <p>Read the current device values before flashing. Captured identity and credentials stay in memory for this session and pre-fill Step 4 and Step 5 where possible.</p>
+                <p>Device data is not autosaved. You can export an encrypted backup with a passphrase; it expires after 7 days. Keep the passphrase separate from the backup file. Older plain-text backups require an explicit confirmation before import.</p>
                 <p id="captured-meta">Nothing captured in this browser for this board yet.</p>
               </div>
               <div class="step-continue-callout" id="read-device-continue" hidden>
@@ -406,7 +407,7 @@
                 <div class="panel__header panel__header--compact">
                   <div>
                     <p class="panel__eyebrow">Captured Values</p>
-                    <h3>Stored in This Browser</h3>
+                    <h3>Captured This Session</h3>
                   </div>
                 </div>
                 <div class="state-grid device-snapshot-grid">
@@ -1022,6 +1023,7 @@
     <div class="toast-container" id="toast-container"></div>
     <script src="assets/firmware-data.js?v=20260917-security1"></script>
     <script src="assets/security.js?v=20260917-security1"></script>
+    <script src="assets/serial-lifecycle.js?v=20260923-issues1"></script>
     <script src="assets/app.js?v=20260917-security1"></script>
   </body>
 </html>

@@ -94,6 +94,22 @@
   let flashingNow = false;
   let applyingNow = false;
   let lastAppliedPlan = null;
+
+  function clearLegacyDeviceStorage() {
+    try {
+      const prefixes = ["meshcore-mqtt-device-info:", "meshcore-mqtt-step4-settings:"];
+      const keysToRemove = [];
+      for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (key && prefixes.some((prefix) => key.startsWith(prefix))) keysToRemove.push(key);
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+    } catch (_error) {
+      // Storage may be disabled; device data still stays in memory only.
+    }
+  }
+
+  clearLegacyDeviceStorage();
   let esptoolPromise = null;
   let logLines = [];
 
@@ -332,6 +348,7 @@
     ]);
     if (result.status === "error" && !silent) log(`${warningLabel}: ${result.error.message}`);
     if (result.status === "timeout" && !silent) log(`${warningLabel}: timed out`);
+    return result.status === "ok";
   }
 
   function disconnectSerialSession({ silent = false } = {}) {
@@ -1018,6 +1035,11 @@
     if (!captured) {
       if (captureSummary) captureSummary.hidden = true;
       if (grid) grid.hidden = true;
+      ["cap-name", "cap-lat", "cap-lon", "cap-prv", "cap-guest", "cap-wifi", "cap-mqtt"].forEach((id) => {
+        const element = $(id);
+        if (element) element.textContent = "—";
+      });
+      if (captureSummary) captureSummary.innerHTML = "";
       return;
     }
     if (grid) grid.hidden = false;
@@ -1043,6 +1065,31 @@
     set("cap-guest", captured.guestPassword ? "captured" : "—");
     set("cap-wifi", captured.wifiSsid);
     set("cap-mqtt", (captured.brokers || []).filter(b => b.uri).length + " configured");
+  }
+
+  async function clearDeviceData() {
+    try {
+      await disconnectSerialSession({ silent: true });
+    } catch (_error) {
+      // Clear the in-memory values even if the port cannot close cleanly.
+    }
+    clearLegacyDeviceStorage();
+    captured = null;
+    lastAppliedPlan = null;
+    document.querySelectorAll("input, textarea").forEach((input) => {
+      const descriptor = `${input.name || ""} ${input.id || ""} ${input.type || ""} ${input.dataset?.k || ""}`;
+      if (input.type === "password" || /private.?key|prv.?key|password|secret/i.test(descriptor)) {
+        input.value = "";
+        if (/private.?key|prv.?key|password|secret/i.test(descriptor)) input.type = "password";
+      }
+    });
+    renderCapture();
+    refreshDefaultTopicInputs();
+    if (fileInput) fileInput.value = "";
+    if (btnDownload) btnDownload.disabled = true;
+    const logBody = $("log-body");
+    if (logBody) logBody.innerHTML = "";
+    updateDisabledStates();
   }
 
   /* ── Backup file (format matches original flasher) ── */
@@ -1096,11 +1143,11 @@
         lines.push(`MQTT Broker ${b.index} Retain Status: ${b.retainStatus || ""}`);
       });
     } else {
-      lines.push("No captured device values are stored for this board in this browser.");
+      lines.push("No captured device values are included for this board.");
     }
 
     lines.push("");
-    lines.push("[Step 4 Values Saved In This Browser]");
+    lines.push("[Step 4 Values For This Backup]");
     const f = snapshotForm();
     lines.push(`Repeater Name: ${f.repeaterName || ""}`);
     lines.push(`Private Key: ${f.privateKey || ""}`);
@@ -1129,20 +1176,30 @@
     return `${lines.join("\n")}\n`;
   }
 
-  function downloadBackup() {
+  async function downloadBackup() {
     if (!captured && !currentBoard) { fail("Nothing to back up yet"); return; }
-    const blob = new Blob([buildBackupFileContents()], { type: "text/plain;charset=utf-8" });
-    const rawName = (captured && captured.name) || (cfgName && cfgName.value.trim()) || (currentBoard && currentBoard.id) || "device";
-    const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-    const timestamp = new Date().toISOString().replace(/[:]/g, "-");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${safeName}-backup-${timestamp}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    ok("Backup downloaded");
+    const passphrase = window.prompt("Choose a passphrase of at least 12 characters. The encrypted backup expires after 7 days; keep this passphrase separate from the file.");
+    if (passphrase === null) return;
+    const confirmation = window.prompt("Enter the backup passphrase again to confirm.");
+    if (confirmation === null) return;
+    if (passphrase !== confirmation) { fail("Backup passphrases did not match"); return; }
+    try {
+      const envelope = await security.encryptDeviceBackup(buildBackupFileContents(), passphrase);
+      const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json;charset=utf-8" });
+      const rawName = (captured && captured.name) || (cfgName && cfgName.value.trim()) || (currentBoard && currentBoard.id) || "device";
+      const safeName = rawName.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      const timestamp = new Date().toISOString().replace(/[:]/g, "-");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${safeName}-encrypted-backup-${timestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      ok("Encrypted backup created; it expires in 7 days");
+    } catch (error) {
+      fail(`Encrypted backup failed: ${error.message}`);
+    }
   }
 
   function parseBackupFile(text) {
@@ -1158,7 +1215,7 @@
       const line = rawLine.trim();
       if (!line) continue;
       if (line === "[Captured Device Values]") { section = "captured"; continue; }
-      if (line === "[Step 4 Values Saved In This Browser]") { section = "step4"; continue; }
+      if (line === "[Step 4 Values Saved In This Browser]" || line === "[Step 4 Values For This Backup]") { section = "step4"; continue; }
 
       const colonIdx = line.indexOf(": ");
       if (colonIdx === -1) continue;
@@ -1225,6 +1282,26 @@
     }
 
     return result;
+  }
+
+  async function decodeBackupFile(text) {
+    let envelope = null;
+    try {
+      envelope = JSON.parse(text);
+    } catch (_error) {
+      // Legacy backups use a plain-text format.
+    }
+
+    if (envelope?.schema === "meshcore-device-backup") {
+      const passphrase = window.prompt("Enter the passphrase for this encrypted backup. The backup expires 7 days after it was created.");
+      if (passphrase === null) throw new Error("Backup import cancelled");
+      return parseBackupFile(await security.decryptDeviceBackup(envelope, passphrase));
+    }
+
+    if (!window.confirm("This older backup is plain text and may contain device credentials. Import it only from a source you trust. Continue?")) {
+      throw new Error("Plain-text backup import cancelled");
+    }
+    return parseBackupFile(text);
   }
 
   function applyStep4ToForm(step4) {
@@ -1363,13 +1440,15 @@
   }
 
   async function releaseFlashSession(transport, port) {
+    let released = true;
     if (transport && typeof transport.disconnect === "function") {
-      await settleSerialOperation(() => transport.disconnect(), 1200, "Flash disconnect warning", false);
+      released = await settleSerialOperation(() => transport.disconnect(), 1200, "Flash disconnect warning", false) && released;
     }
     if (port && (port.readable || port.writable)) {
-      await settleSerialOperation(() => port.close(), 1200, "Flash port close warning", false);
+      released = await settleSerialOperation(() => port.close(), 1200, "Flash port close warning", false) && released;
     }
     await delay(150);
+    return released;
   }
 
   async function runLoaderMainWithTimeout(loader, mode, timeoutMs, message) {
@@ -1390,14 +1469,18 @@
   }
 
   async function cleanupBootloaderAttempt(error, transport) {
+    let released = false;
     try {
-      await releaseFlashSession(transport, null);
+      released = await releaseFlashSession(transport, null);
     } catch (releaseError) {
       log(`Flash reconnect warning: ${releaseError.message}`);
     }
+    let operationSettled = true;
     if (error?.pendingOperation) {
-      await settleSerialOperation(() => error.pendingOperation, 1200, "Bootloader cleanup warning", true);
+      const result = await window.MeshCoreSerialLifecycle.waitForSettlement(error.pendingOperation, 1200);
+      operationSettled = result.settled;
     }
+    return released && operationSettled;
   }
 
   async function connectBootloaderWithFallback({ ESPLoader, HardReset, Transport, port, flashOptions, boardLabel }) {
@@ -1420,15 +1503,17 @@
     } catch (error) {
       const needsManual = isSerialSignalFailure(error) ||
         /Timed out|Failed to connect|already open|InvalidStateError/i.test(String((error && error.message) || error));
+      const previousAttemptStopped = await cleanupBootloaderAttempt(error, transport);
+      if (!previousAttemptStopped) {
+        throw new Error("The previous bootloader attempt did not stop cleanly; no retry was started. Close the serial session and restart the flasher before trying again.");
+      }
       if (!needsManual) {
-        await cleanupBootloaderAttempt(error, transport);
         throw error;
       }
 
       const usbVid = (port && typeof port.getInfo === "function" && port.getInfo().usbVendorId)
         ? port.getInfo().usbVendorId.toString(16) : "";
       const isNative = usbVid === "303a";
-      await cleanupBootloaderAttempt(error, transport);
       log("Automatic bootloader entry failed — manual entry required.");
       window.alert(
         "Manual bootloader entry required\n\n" +
@@ -1705,6 +1790,10 @@
           return `<div>${escapeHtml(r.label)}: ${escapeHtml(r.value || "—")}${mark}</div>`;
         }).join("") +
         `<div class="verify-total">${matched} of ${rows.length - skipped} matched` + (failed ? ` — <span class="bad">${failed} mismatched</span>` : "") + `</div>`;
+        if (failed === 0 && skipped === 0) {
+          await clearDeviceData();
+          ok("Settings verified; device data cleared from this session");
+        }
       }
     } catch (e) {
       if (verifySummary) verifySummary.textContent = "Verify failed: " + e.message;
@@ -1721,7 +1810,7 @@
     fi.value = "";
     try {
       const txt = await f.text();
-      const parsed = parseBackupFile(txt);
+      const parsed = await decodeBackupFile(txt);
       if (!parsed.captured && !parsed.step4) { fail("Could not parse backup file"); return; }
       let boardMatched = false;
       if (parsed.boardId) {
@@ -1799,9 +1888,10 @@
   safe(btnReboot, b => b.addEventListener("click", rebootDevice));
   safe(btnReconnectApply, b => b.addEventListener("click", connectSerial));
   safe(btnVerify, b => b.addEventListener("click", verifyNow));
-  safe(btnDone, b => b.addEventListener("click", () => {
+  safe($("btn-clear-device-data"), b => b.addEventListener("click", clearDeviceData));
+  safe(btnDone, b => b.addEventListener("click", async () => {
+    await clearDeviceData();
     flashComplete = false;
-    lastAppliedPlan = null;
     if (reconnectApply) reconnectApply.hidden = true;
     if (reconnectFlash) reconnectFlash.hidden = true;
     showStep(1);

@@ -52,8 +52,9 @@
 
         <div class="actions">
           <button id="btn-read-device" class="btn btn-primary" type="button">Read Device Now</button>
-          <button id="btn-upload-backup" class="btn" type="button">Upload Backup</button>
-          <button id="btn-download-backup" class="btn" type="button" disabled>Download Backup</button>
+          <button id="btn-upload-backup" class="btn" type="button">Upload Encrypted Backup</button>
+          <button id="btn-download-backup" class="btn" type="button" disabled>Download Encrypted Backup</button>
+          <button id="btn-clear-device-data" class="btn" type="button">Clear Device Data</button>
         </div>
 
         <div id="capture-summary" class="capture-summary" hidden></div>
@@ -123,7 +124,7 @@
       <!-- STEP 4: Configure (all settings, one section at a time) -->
       <section class="panel" id="step-4" hidden>
         <h2>4. Configure your board</h2>
-        <p class="muted">Everything in one place — open a section, fill it in, move on. Values captured in step 1 are pre-filled where available.</p>
+        <p class="muted">Everything in one place — open a section, fill it in, move on. Values captured in step 1 stay in memory for this session. Encrypted backups expire after 7 days; store the passphrase separately.</p>
 
         <div class="cfg-accordion">
 
@@ -291,10 +292,11 @@
     </footer>
   </div>
 
-  <input type="file" id="backup-file" accept=".txt" hidden>
+  <input type="file" id="backup-file" accept=".json,.txt" hidden>
 
   <script src="assets/firmware-data.js?v=20260917-security1"></script>
   <script src="../assets/security.js?v=20260917-security1"></script>
+  <script src="../assets/serial-lifecycle.js?v=20260923-issues1"></script>
   <script src="assets/app.js?v=20260917-security1"></script>
 </body>
 </html>
